@@ -1,0 +1,58 @@
+{
+ "chip": "Bit",
+ "kind": "clocked",
+ "cases": [
+  {
+   "set": {
+    "in": 1,
+    "load": 1
+   },
+   "out": {
+    "out": 0
+   },
+   "outAfter": {
+    "out": 1
+   },
+   "comment": "load 写 1"
+  },
+  {
+   "set": {
+    "in": 0,
+    "load": 0
+   },
+   "out": {
+    "out": 1
+   },
+   "outAfter": {
+    "out": 1
+   },
+   "comment": "load=0 保持"
+  },
+  {
+   "set": {
+    "in": 0,
+    "load": 1
+   },
+   "out": {
+    "out": 1
+   },
+   "outAfter": {
+    "out": 0
+   },
+   "comment": "load 写 0"
+  },
+  {
+   "set": {
+    "in": 1,
+    "load": 0
+   },
+   "out": {
+    "out": 0
+   },
+   "outAfter": {
+    "out": 0
+   },
+   "comment": "load=0 保持"
+  }
+ ]
+}

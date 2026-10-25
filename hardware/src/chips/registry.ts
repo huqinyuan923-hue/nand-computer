@@ -9,6 +9,9 @@ import {
   buildMux4Way16, buildMux8Way16, buildDMux4Way, buildDMux8Way,
 } from './combinational.ts';
 import { buildHalfAdder, buildFullAdder, buildAdd16, buildInc16, buildAlu } from './arith-chips.ts';
+import {
+  buildBit, buildRegister, buildARegister, buildDRegister, buildPC, buildRam8, buildRam64,
+} from './seq-chips.ts';
 
 export function chip(name: string, fn: (c: Circuit) => void): Compiled {
   const c = new Circuit(name);
@@ -43,4 +46,11 @@ export const REGISTRY: Record<string, () => Compiled> = {
   Add16: buildAdd16,
   Inc16: buildInc16,
   ALU: buildAlu,
+  Bit: buildBit,
+  Register: buildRegister,
+  ARegister: buildARegister,
+  DRegister: buildDRegister,
+  PC: buildPC,
+  RAM8: buildRam8,
+  RAM64: buildRam64,
 };

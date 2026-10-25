@@ -1,0 +1,54 @@
+{
+ "chip": "ARegister",
+ "kind": "clocked",
+ "cases": [
+  {
+   "set": {
+    "in": 48879,
+    "load": 1
+   },
+   "out": {
+    "out": 0
+   },
+   "outAfter": {
+    "out": 48879
+   }
+  },
+  {
+   "set": {
+    "in": 4660,
+    "load": 0
+   },
+   "out": {
+    "out": 48879
+   },
+   "outAfter": {
+    "out": 48879
+   }
+  },
+  {
+   "set": {
+    "in": 4660,
+    "load": 1
+   },
+   "out": {
+    "out": 48879
+   },
+   "outAfter": {
+    "out": 4660
+   }
+  },
+  {
+   "set": {
+    "in": 0,
+    "load": 0
+   },
+   "out": {
+    "out": 4660
+   },
+   "outAfter": {
+    "out": 4660
+   }
+  }
+ ]
+}

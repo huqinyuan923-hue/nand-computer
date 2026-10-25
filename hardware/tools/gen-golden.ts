@@ -22,6 +22,14 @@ export function mulberry32(seed: number): () => number {
 
 const rng = mulberry32(20261025);
 
+interface GoldenCaseLike {
+  set?: Record<string, number>;
+  out?: Record<string, number | null>;
+  outAfter?: Record<string, number | null>;
+  tick?: boolean;
+  comment?: string;
+}
+
 function write(name: string, obj: unknown): void {
   writeFileSync(join(outDir, name), JSON.stringify(obj, null, 1) + '\n');
   console.log('golden written:', name);
@@ -269,6 +277,87 @@ function aluRef(x: number, y: number, zx: number, nx: number, zy: number, ny: nu
     }
   }
   write('alu.json', { chip: 'ALU', kind: 'comb', cases });
+}
+
+// ---------------------------------------------------------------- M4: 时序 + 门级 RAM
+
+// Bit / Register / ARegister / DRegister：load 保持语义（时钟沿前读 out，沿后读 outAfter）
+{
+  write('bit.json', {
+    chip: 'Bit', kind: 'clocked',
+    cases: [
+      { set: { in: 1, load: 1 }, out: { out: 0 }, outAfter: { out: 1 }, comment: 'load 写 1' },
+      { set: { in: 0, load: 0 }, out: { out: 1 }, outAfter: { out: 1 }, comment: 'load=0 保持' },
+      { set: { in: 0, load: 1 }, out: { out: 1 }, outAfter: { out: 0 }, comment: 'load 写 0' },
+      { set: { in: 1, load: 0 }, out: { out: 0 }, outAfter: { out: 0 }, comment: 'load=0 保持' },
+    ],
+  });
+
+  const regCases = [
+    { set: { in: 0xbeef, load: 1 }, out: { out: 0 }, outAfter: { out: 0xbeef } },
+    { set: { in: 0x1234, load: 0 }, out: { out: 0xbeef }, outAfter: { out: 0xbeef } },
+    { set: { in: 0x1234, load: 1 }, out: { out: 0xbeef }, outAfter: { out: 0x1234 } },
+    { set: { in: 0, load: 0 }, out: { out: 0x1234 }, outAfter: { out: 0x1234 } },
+  ];
+  write('register.json', { chip: 'Register', kind: 'clocked', cases: regCases });
+  write('aregister.json', { chip: 'ARegister', kind: 'clocked', cases: regCases });
+  write('dregister.json', { chip: 'DRegister', kind: 'clocked', cases: regCases });
+}
+
+// PC：reset > load > inc 优先级 + 15 位回绕
+{
+  const P = (inc: number, load: number, reset: number, inV: number) => ({ inc, load, reset, in: inV });
+  write('pc.json', {
+    chip: 'PC', kind: 'clocked',
+    cases: [
+      { set: P(1, 0, 0, 0), out: { out: 0 }, outAfter: { out: 1 }, comment: '自增' },
+      { set: P(1, 0, 0, 0), out: { out: 1 }, outAfter: { out: 2 } },
+      { set: P(0, 1, 0, 100), out: { out: 2 }, outAfter: { out: 100 }, comment: 'load' },
+      { set: P(1, 0, 0, 100), out: { out: 100 }, outAfter: { out: 101 } },
+      { set: P(0, 0, 0, 100), out: { out: 101 }, outAfter: { out: 101 }, comment: '保持' },
+      { set: P(0, 1, 0, 55), out: { out: 101 }, outAfter: { out: 55 } },
+      { set: P(0, 0, 1, 55), out: { out: 55 }, outAfter: { out: 0 }, comment: 'reset' },
+      { set: P(0, 1, 1, 7), out: { out: 0 }, outAfter: { out: 0 }, comment: 'reset 优先于 load' },
+      { set: P(1, 0, 0, 0), out: { out: 0 }, outAfter: { out: 1 }, comment: '恢复自增' },
+      { set: P(0, 1, 0, 32767), out: { out: 1 }, outAfter: { out: 32767 } },
+      { set: P(1, 0, 0, 0), out: { out: 32767 }, outAfter: { out: 0 }, comment: '15 位回绕' },
+    ],
+  });
+}
+
+// RAM8：全地址写读回 + 覆盖写
+{
+  const val = (a: number) => (1000 + a * 7) & 0xffff;
+  const cases: GoldenCaseLike[] = [];
+  for (let a = 0; a < 8; a++) {
+    cases.push({ set: { address: a, in: val(a), load: 1 }, out: { out: 0 }, outAfter: { out: val(a) } });
+  }
+  for (let a = 0; a < 8; a++) {
+    cases.push({ set: { address: a, in: 0, load: 0 }, out: { out: val(a) }, tick: false, comment: `读回 ${a}` });
+  }
+  cases.push({ set: { address: 3, in: 0xabcd, load: 1 }, out: { out: val(3) }, outAfter: { out: 0xabcd } });
+  cases.push({ set: { address: 3, in: 0, load: 0 }, out: { out: 0xabcd }, tick: false });
+  cases.push({ set: { address: 5, in: 0, load: 0 }, out: { out: val(5) }, tick: false, comment: '其他地址不受影响' });
+  write('ram8.json', { chip: 'RAM8', kind: 'clocked', cases });
+}
+
+// RAM64：全地址写读回 + 随机覆盖
+{
+  const val = (a: number) => (1000 + a * 13) & 0xffff;
+  const cases: GoldenCaseLike[] = [];
+  for (let a = 0; a < 64; a++) {
+    cases.push({ set: { address: a, in: val(a), load: 1 }, out: { out: 0 }, outAfter: { out: val(a) } });
+  }
+  for (let a = 0; a < 64; a++) {
+    cases.push({ set: { address: a, in: 0, load: 0 }, out: { out: val(a) }, tick: false, comment: `读回 ${a}` });
+  }
+  for (let k = 0; k < 8; k++) {
+    const a = Math.floor(rng() * 64);
+    const v = Math.floor(rng() * 65536);
+    cases.push({ set: { address: a, in: v, load: 1 }, out: { out: val(a) }, outAfter: { out: v } });
+    cases.push({ set: { address: a, in: 0, load: 0 }, out: { out: v }, tick: false });
+  }
+  write('ram64.json', { chip: 'RAM64', kind: 'clocked', cases });
 }
 
 console.log('done.');

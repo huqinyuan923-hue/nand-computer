@@ -1,0 +1,167 @@
+{
+ "chip": "PC",
+ "kind": "clocked",
+ "cases": [
+  {
+   "set": {
+    "inc": 1,
+    "load": 0,
+    "reset": 0,
+    "in": 0
+   },
+   "out": {
+    "out": 0
+   },
+   "outAfter": {
+    "out": 1
+   },
+   "comment": "自增"
+  },
+  {
+   "set": {
+    "inc": 1,
+    "load": 0,
+    "reset": 0,
+    "in": 0
+   },
+   "out": {
+    "out": 1
+   },
+   "outAfter": {
+    "out": 2
+   }
+  },
+  {
+   "set": {
+    "inc": 0,
+    "load": 1,
+    "reset": 0,
+    "in": 100
+   },
+   "out": {
+    "out": 2
+   },
+   "outAfter": {
+    "out": 100
+   },
+   "comment": "load"
+  },
+  {
+   "set": {
+    "inc": 1,
+    "load": 0,
+    "reset": 0,
+    "in": 100
+   },
+   "out": {
+    "out": 100
+   },
+   "outAfter": {
+    "out": 101
+   }
+  },
+  {
+   "set": {
+    "inc": 0,
+    "load": 0,
+    "reset": 0,
+    "in": 100
+   },
+   "out": {
+    "out": 101
+   },
+   "outAfter": {
+    "out": 101
+   },
+   "comment": "保持"
+  },
+  {
+   "set": {
+    "inc": 0,
+    "load": 1,
+    "reset": 0,
+    "in": 55
+   },
+   "out": {
+    "out": 101
+   },
+   "outAfter": {
+    "out": 55
+   }
+  },
+  {
+   "set": {
+    "inc": 0,
+    "load": 0,
+    "reset": 1,
+    "in": 55
+   },
+   "out": {
+    "out": 55
+   },
+   "outAfter": {
+    "out": 0
+   },
+   "comment": "reset"
+  },
+  {
+   "set": {
+    "inc": 0,
+    "load": 1,
+    "reset": 1,
+    "in": 7
+   },
+   "out": {
+    "out": 0
+   },
+   "outAfter": {
+    "out": 0
+   },
+   "comment": "reset 优先于 load"
+  },
+  {
+   "set": {
+    "inc": 1,
+    "load": 0,
+    "reset": 0,
+    "in": 0
+   },
+   "out": {
+    "out": 0
+   },
+   "outAfter": {
+    "out": 1
+   },
+   "comment": "恢复自增"
+  },
+  {
+   "set": {
+    "inc": 0,
+    "load": 1,
+    "reset": 0,
+    "in": 32767
+   },
+   "out": {
+    "out": 1
+   },
+   "outAfter": {
+    "out": 32767
+   }
+  },
+  {
+   "set": {
+    "inc": 1,
+    "load": 0,
+    "reset": 0,
+    "in": 0
+   },
+   "out": {
+    "out": 32767
+   },
+   "outAfter": {
+    "out": 0
+   },
+   "comment": "15 位回绕"
+  }
+ ]
+}

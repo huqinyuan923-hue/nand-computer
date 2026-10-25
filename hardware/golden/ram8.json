@@ -1,0 +1,242 @@
+{
+ "chip": "RAM8",
+ "kind": "clocked",
+ "cases": [
+  {
+   "set": {
+    "address": 0,
+    "in": 1000,
+    "load": 1
+   },
+   "out": {
+    "out": 0
+   },
+   "outAfter": {
+    "out": 1000
+   }
+  },
+  {
+   "set": {
+    "address": 1,
+    "in": 1007,
+    "load": 1
+   },
+   "out": {
+    "out": 0
+   },
+   "outAfter": {
+    "out": 1007
+   }
+  },
+  {
+   "set": {
+    "address": 2,
+    "in": 1014,
+    "load": 1
+   },
+   "out": {
+    "out": 0
+   },
+   "outAfter": {
+    "out": 1014
+   }
+  },
+  {
+   "set": {
+    "address": 3,
+    "in": 1021,
+    "load": 1
+   },
+   "out": {
+    "out": 0
+   },
+   "outAfter": {
+    "out": 1021
+   }
+  },
+  {
+   "set": {
+    "address": 4,
+    "in": 1028,
+    "load": 1
+   },
+   "out": {
+    "out": 0
+   },
+   "outAfter": {
+    "out": 1028
+   }
+  },
+  {
+   "set": {
+    "address": 5,
+    "in": 1035,
+    "load": 1
+   },
+   "out": {
+    "out": 0
+   },
+   "outAfter": {
+    "out": 1035
+   }
+  },
+  {
+   "set": {
+    "address": 6,
+    "in": 1042,
+    "load": 1
+   },
+   "out": {
+    "out": 0
+   },
+   "outAfter": {
+    "out": 1042
+   }
+  },
+  {
+   "set": {
+    "address": 7,
+    "in": 1049,
+    "load": 1
+   },
+   "out": {
+    "out": 0
+   },
+   "outAfter": {
+    "out": 1049
+   }
+  },
+  {
+   "set": {
+    "address": 0,
+    "in": 0,
+    "load": 0
+   },
+   "out": {
+    "out": 1000
+   },
+   "tick": false,
+   "comment": "读回 0"
+  },
+  {
+   "set": {
+    "address": 1,
+    "in": 0,
+    "load": 0
+   },
+   "out": {
+    "out": 1007
+   },
+   "tick": false,
+   "comment": "读回 1"
+  },
+  {
+   "set": {
+    "address": 2,
+    "in": 0,
+    "load": 0
+   },
+   "out": {
+    "out": 1014
+   },
+   "tick": false,
+   "comment": "读回 2"
+  },
+  {
+   "set": {
+    "address": 3,
+    "in": 0,
+    "load": 0
+   },
+   "out": {
+    "out": 1021
+   },
+   "tick": false,
+   "comment": "读回 3"
+  },
+  {
+   "set": {
+    "address": 4,
+    "in": 0,
+    "load": 0
+   },
+   "out": {
+    "out": 1028
+   },
+   "tick": false,
+   "comment": "读回 4"
+  },
+  {
+   "set": {
+    "address": 5,
+    "in": 0,
+    "load": 0
+   },
+   "out": {
+    "out": 1035
+   },
+   "tick": false,
+   "comment": "读回 5"
+  },
+  {
+   "set": {
+    "address": 6,
+    "in": 0,
+    "load": 0
+   },
+   "out": {
+    "out": 1042
+   },
+   "tick": false,
+   "comment": "读回 6"
+  },
+  {
+   "set": {
+    "address": 7,
+    "in": 0,
+    "load": 0
+   },
+   "out": {
+    "out": 1049
+   },
+   "tick": false,
+   "comment": "读回 7"
+  },
+  {
+   "set": {
+    "address": 3,
+    "in": 43981,
+    "load": 1
+   },
+   "out": {
+    "out": 1021
+   },
+   "outAfter": {
+    "out": 43981
+   }
+  },
+  {
+   "set": {
+    "address": 3,
+    "in": 0,
+    "load": 0
+   },
+   "out": {
+    "out": 43981
+   },
+   "tick": false
+  },
+  {
+   "set": {
+    "address": 5,
+    "in": 0,
+    "load": 0
+   },
+   "out": {
+    "out": 1035
+   },
+   "tick": false,
+   "comment": "其他地址不受影响"
+  }
+ ]
+}
