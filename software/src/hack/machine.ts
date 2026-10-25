@@ -235,8 +235,10 @@ export class HackMachine {
   }
 
   /**
-   * Run to completion of the requested conditions. Stops when: all checkpoints done
-   * (and until reached if given), PC runs off the program, or maxCycles hit.
+   * Run per RunOptions. Checkpoint semantics: the snapshot for cycle c is taken
+   * AFTER the instruction fetched at cycle c has fully completed. The run stops
+   * when: until/maxCycles reached (cycle N inclusive), the last checkpoint fired,
+   * or the PC runs off the program.
    */
   run(opts: RunOptions = {}): RunResult {
     const maxCycles = opts.maxCycles ?? 1_000_000_000;
@@ -248,35 +250,33 @@ export class HackMachine {
     }
     const cpCycles = [...new Set(opts.checkpoints ?? [])].sort((x, y) => x - y);
     const checkpoints: Checkpoint[] = [];
-    const maxCp = cpCycles.length > 0 ? cpCycles[cpCycles.length - 1] : -1;
-    const stopCycle = Math.min(until, maxCp, maxCycles);
-    let haltReason: RunResult["haltReason"] = "none";
+    const lastCp = cpCycles.length > 0 ? cpCycles[cpCycles.length - 1] : Number.MAX_SAFE_INTEGER;
+    const stopCycle = Math.min(until, lastCp, maxCycles);
+    let haltReason: RunResult["haltReason"] =
+      stopCycle >= maxCycles ? "max-cycles" : "until";
 
     let cpIdx = 0;
-    // checkpoints at cycles already completed
-    while (cpIdx < cpCycles.length && cpCycles[cpIdx] <= this.cycle) {
-      checkpoints.push(this.snapshot());
+    const fire = (cycle: number): void => {
+      const snap = this.snapshot();
+      snap.cycle = cycle;
+      checkpoints.push(snap);
+    };
+    // checkpoints for cycles already completed by earlier runs
+    while (cpIdx < cpCycles.length && cpCycles[cpIdx] < this.cycle) {
+      fire(cpCycles[cpIdx]);
       cpIdx++;
     }
 
-    while (true) {
-      if (cpIdx < cpCycles.length && this.cycle >= cpCycles[cpIdx]) {
-        checkpoints.push(this.snapshot());
-        cpIdx++;
-      }
-      if (this.cycle >= stopCycle) {
-        haltReason = this.cycle >= maxCycles ? "max-cycles" : "until";
-        break;
-      }
+    while (this.cycle <= stopCycle) {
       if (!this.step()) {
         haltReason = "end-of-program";
         break;
       }
-    }
-    // trailing checkpoints (e.g. stopCycle hit before last cp or halt before cp)
-    while (cpIdx < cpCycles.length && this.cycle >= cpCycles[cpIdx]) {
-      checkpoints.push(this.snapshot());
-      cpIdx++;
+      // instructions at cycles 0..this.cycle-1 have completed; fire due checkpoints
+      while (cpIdx < cpCycles.length && cpCycles[cpIdx] < this.cycle) {
+        fire(cpCycles[cpIdx]);
+        cpIdx++;
+      }
     }
 
     return {
