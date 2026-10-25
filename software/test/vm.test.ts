@@ -144,15 +144,16 @@ test("function/call/return: recursion + nested frames + statics", () => {
   assert.ok(m.ram[0] < 2048, "stack usage sane");
 });
 
-test("bootstrap emits SP=256 + call Sys.init", () => {
+test("bootstrap emits SP=256 + full call frame for Sys.init", () => {
   const { commands } = parseVm("function Sys.init 0\nlabel STOP\ngoto STOP");
   const asm = translateVm(commands, { module: "Prog", bootstrap: true });
   const r = assemble(asm);
   assert.deepEqual(r.errors, []);
   const m = new HackMachine(r.words);
   m.run({ until: 100 });
-  assert.equal(m.ram[0], 256); // SP initialized, loop parked
-  assert.equal(m.ram[1], m.ram[1]); // LCL untouched placeholder (sanity no-crash)
+  // frame: retaddr + LCL/ARG/THIS/THAT = 5 words; init parks in STOP loop
+  assert.equal(m.ram[0], 261);
+  assert.equal(m.ram[1], 261); // LCL = SP at call time
 });
 
 test("multi-module statics do not collide", () => {

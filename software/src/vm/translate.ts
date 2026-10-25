@@ -32,10 +32,23 @@ export function translateVm(commands: VmCommand[], opts: TranslateOptions): stri
   const fresh = (tag: string): string => `${mod}$${tag}.${labelCounter++}`;
 
   if (opts.bootstrap) {
-    // entry point is the module-prefixed label, matching function emission below
+    // full call frame so Sys.init may return; returning lands in the halt loop
     emit(
       "@256", "D=A", "@SP", "M=D",
-      `@${mod}$Sys.init`, "0;JMP",
+      // push return address
+      "@BOOT$HALT", "D=A", "@SP", "M=M+1", "A=M-1", "M=D",
+      // push LCL, ARG, THIS, THAT
+      "@LCL", "D=M", "@SP", "M=M+1", "A=M-1", "M=D",
+      "@ARG", "D=M", "@SP", "M=M+1", "A=M-1", "M=D",
+      "@THIS", "D=M", "@SP", "M=M+1", "A=M-1", "M=D",
+      "@THAT", "D=M", "@SP", "M=M+1", "A=M-1", "M=D",
+      // ARG = SP - 5, LCL = SP
+      "@SP", "D=M", "@5", "D=D-A", "@ARG", "M=D",
+      "@SP", "D=M", "@LCL", "M=D",
+      // goto Sys.init (fixed entry class, global name)
+      "@Sys.init", "0;JMP",
+      "(BOOT$HALT)",
+      "@BOOT$HALT", "0;JMP",
     );
   }
 
@@ -92,7 +105,8 @@ export function translateVm(commands: VmCommand[], opts: TranslateOptions): stri
         emit("@SP", "M=M-1", "A=M", "D=M", `@${mod}$${cmd.arg1}`, "D;JNE");
         break;
       case "function": {
-        emit(`(${mod}$${cmd.arg1})`);
+        // function names are fully qualified (Class.sub) and global — no prefix
+        emit(`(${cmd.arg1})`);
         for (let i = 0; i < (cmd.arg2 ?? 0); i++) {
           emit("@SP", "M=M+1", "A=M-1", "M=0");
         }
@@ -110,8 +124,8 @@ export function translateVm(commands: VmCommand[], opts: TranslateOptions): stri
           "@SP", "D=M", `@${cmd.arg2}`, "D=D-A", "@5", "D=D-A", "@ARG", "M=D",
           // LCL = SP
           "@SP", "D=M", "@LCL", "M=D",
-          // goto f
-          `@${mod}$${cmd.arg1}`, "0;JMP",
+          // goto f (global function name)
+          `@${cmd.arg1}`, "0;JMP",
           `(${ret})`,
         );
         break;
