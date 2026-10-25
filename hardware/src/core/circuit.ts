@@ -20,6 +20,8 @@ export class Circuit {
   readonly inputs = new Map<string, Bus>();
   readonly outputs = new Map<string, Bus>();
   private count = 0;
+  /** 已分配线数 */
+  get wireCount(): number { return this.count; }
   /** 恒 0 线：无驱动，求值时保持 0 */
   readonly zero: Wire;
 
@@ -91,7 +93,7 @@ function makeJit(gA: Int32Array, gB: Int32Array, gOut: Int32Array): ((w: Uint8Ar
 }
 
 export function compile(c: Circuit): Compiled {
-  const n = c.count;
+  const n = c.wireCount;
   const writer = new Int32Array(n).fill(-1); // wire -> 写它的门下标；-1 = 输入/DFF 输出/恒 0/未驱动
 
   c.gates.forEach((g, i) => {
@@ -128,7 +130,7 @@ export function compile(c: Circuit): Compiled {
   c.gates.forEach((g, i) => {
     for (const w of [g.a, g.b]) {
       const wr = writer[w];
-      if (wr >= 0) { consumers[wr].push(i); indeg[i]++; }
+      if (wr >= 0) { consumers[w].push(i); indeg[i]++; } // consumers 以“被消费的线号”为键
     }
   });
   const queue: number[] = [];
