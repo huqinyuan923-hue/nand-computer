@@ -1,0 +1,9 @@
+- 16 位字、15 位程序地址。A 指令：0 + 15 位值。C 指令：111a cccccc ddd jjj，comp/dest/jump 编码=标准 Hack 规范。
+- 内存映射：RAM 0x0000–0x3FFF；Screen 0x4000–0x5FFF；Keyboard 0x6000。越界读得 0，写忽略。
+- Screen：512×256 单色；字地址 w=y*32+(x>>4)；像素位=15-(x&15)（MSB=最左像素）；1=点亮。
+- Keyboard：0=无键；可打印=Unicode 码点；Backspace=8、Tab=9、Enter=13、Esc=27、Left=37、Up=38、Right=39、Down=40；keyup 写 0。
+- 预定义符号：R0–R15=0–15、SP=0、LCL=1、ARG=2、THIS=3、THAT=4、SCREEN=0x4000、KBD=0x6000。
+- .hack 格式：每行一条 16 位二进制，自地址 0 递增。
+- 输入脚本：每行「cycle keycode」（十进制，cycle=全局时钟周期，keycode 0=抬起），按 cycle 非降序。
+- 屏幕哈希：8192 个字按大端展开成 16384 字节，取 SHA-256 小写十六进制。
+- 本文件冻结：两轨均不得修改；有歧义以跨轨哈希对拍结果为准。
