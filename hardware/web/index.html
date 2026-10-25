@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>nand-computer — 门级 Hack 计算机</title>
+<style>
+  :root { color-scheme: dark; }
+  body {
+    font-family: "Segoe UI", system-ui, sans-serif;
+    background: #101418; color: #d8dee6;
+    max-width: 980px; margin: 0 auto; padding: 16px 20px 40px;
+  }
+  h1 { font-size: 20px; margin: 8px 0 12px; color: #fff; }
+  h1 small { color: #7aa2f7; font-weight: normal; }
+  .controls {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    padding: 10px 12px; background: #1a2027; border-radius: 10px; margin-bottom: 10px;
+  }
+  button, select, input[type="file"]::file-selector-button {
+    background: #2a3340; color: #d8dee6; border: 1px solid #3c4756;
+    border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 13px;
+  }
+  button:hover, select:hover { background: #35404f; }
+  button.primary { background: #2f5c3f; border-color: #3f7a55; }
+  label { font-size: 13px; color: #9fb0c3; }
+  .status {
+    font-size: 13px; color: #9fb0c3; display: flex; gap: 18px; flex-wrap: wrap;
+    padding: 6px 4px; font-variant-numeric: tabular-nums;
+  }
+  .status b { color: #e8edf3; font-weight: 600; }
+  canvas {
+    width: 512px; image-rendering: pixelated;
+    border: 1px solid #2a3340; border-radius: 6px; background: #000;
+    display: block; margin: 8px 0;
+  }
+  .hint { font-size: 12.5px; color: #6d7d90; line-height: 1.7; }
+  .hint code { color: #9fb0c3; background: #1a2027; padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+  <h1>nand-computer <small>— NAND 门级 Hack 计算机 · 浏览器 demo</small></h1>
+
+  <div class="controls">
+    <input type="file" id="file" accept=".hack,text/plain">
+    <button id="demo" class="primary">载入内置示例</button>
+    <button id="run">运行</button>
+    <button id="reset">复位</button>
+    <select id="mode" title="仿真模式">
+      <option value="gate">门级实时</option>
+      <option value="ff">行为级快进</option>
+    </select>
+    <label>速度 <input type="range" id="speed" min="0" max="100" value="55"></label>
+  </div>
+
+  <div class="status">
+    <span>模式 <b id="stat-mode">门级实时</b></span>
+    <span>周期 <b id="stat-cycles">0</b></span>
+    <span>频率 <b id="stat-freq">0</b> 周期/秒</span>
+    <span>ROM <b id="stat-rom">0</b> 条</span>
+    <span>状态 <b id="stat-state">已停止</b></span>
+  </div>
+
+  <canvas id="screen" width="512" height="256"></canvas>
+
+  <p class="hint">
+    加载 <code>.hack</code> 文件或内置示例后点「运行」。键盘事件写入 KBD（0x6000）：
+    直接按键即可（Enter=13、方向键=37..40、可打印字符=Unicode 码点）。
+    「门级实时」跑完整 NAND 门网表 CPU；「行为级快进」切换到行为级 ISA 解释器大步快进，
+    切回门级时内存与 A/D/PC 状态无缝迁移。屏幕 512×256 单色，MSB=最左像素。
+  </p>
+
+  <script type="module" src="/web/app.js"></script>
+</body>
+</html>
