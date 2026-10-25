@@ -8,6 +8,7 @@ import {
   buildNot16, buildAnd16, buildOr16, buildXor16, buildMux16,
   buildMux4Way16, buildMux8Way16, buildDMux4Way, buildDMux8Way,
 } from './combinational.ts';
+import { buildHalfAdder, buildFullAdder, buildAdd16, buildInc16, buildAlu } from './arith-chips.ts';
 
 export function chip(name: string, fn: (c: Circuit) => void): Compiled {
   const c = new Circuit(name);
@@ -37,4 +38,9 @@ export const REGISTRY: Record<string, () => Compiled> = {
   Mux8Way16: buildMux8Way16,
   DMux4Way: buildDMux4Way,
   DMux8Way: buildDMux8Way,
+  HalfAdder: buildHalfAdder,
+  FullAdder: buildFullAdder,
+  Add16: buildAdd16,
+  Inc16: buildInc16,
+  ALU: buildAlu,
 };

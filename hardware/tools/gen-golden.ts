@@ -191,4 +191,84 @@ write('dmux.json', { chip: 'DMux', kind: 'comb', cases: dmuxCases });
   write('dmux8way.json', { chip: 'DMux8Way', kind: 'comb', cases: cases8 });
 }
 
+// ---------------------------------------------------------------- M3: 运算 + ALU
+
+// HalfAdder：穷举 4
+{
+  const cases = [];
+  for (const a of [0, 1]) {
+    for (const b of [0, 1]) {
+      cases.push({ in: { a, b }, out: { sum: a ^ b, carry: a & b } });
+    }
+  }
+  write('halfadder.json', { chip: 'HalfAdder', kind: 'comb', cases });
+}
+
+// FullAdder：穷举 8
+{
+  const cases = [];
+  for (const a of [0, 1]) {
+    for (const b of [0, 1]) {
+      for (const cin of [0, 1]) {
+        const s = a + b + cin;
+        cases.push({ in: { a, b, c: cin }, out: { sum: s & 1, carry: s >>> 1 } });
+      }
+    }
+  }
+  write('fulladder.json', { chip: 'FullAdder', kind: 'comb', cases });
+}
+
+// Add16 / Inc16：边界值 + 固定种子随机，期望 = JS 算术
+{
+  const pairs: [number, number][] = [];
+  const vals = sample16(20);
+  for (let i = 0; i < vals.length; i++) {
+    for (let j = i; j < vals.length; j++) {
+      pairs.push([vals[i], vals[j]]);
+      if (i !== j) pairs.push([vals[j], vals[i]]);
+    }
+  }
+  write('add16.json', {
+    chip: 'Add16', kind: 'comb',
+    cases: pairs.map(([x, y]) => ({ in: { a: x, b: y }, out: { out: (x + y) & 0xffff } })),
+  });
+  write('inc16.json', {
+    chip: 'Inc16', kind: 'comb',
+    cases: vals.map((v) => ({ in: { in: v }, out: { out: (v + 1) & 0xffff } })),
+  });
+}
+
+// ALU：128 组控制位全穷举 × 精选操作数对（期望 = 独立语义实现）
+function aluRef(x: number, y: number, zx: number, nx: number, zy: number, ny: number, f: number, no: number) {
+  if (zx) x = 0;
+  if (nx) x = (~x) & 0xffff;
+  if (zy) y = 0;
+  if (ny) y = (~y) & 0xffff;
+  let out = f ? (x + y) & 0xffff : (x & y);
+  if (no) out = (~out) & 0xffff;
+  return { out, zr: out === 0 ? 1 : 0, ng: out >>> 15 };
+}
+{
+  const operandPairs: [number, number][] = [
+    [0, 0], [0, 1], [1, 0], [0xffff, 0xffff], [0x8000, 0x8000],
+    [0x7fff, 1], [1, 0x7fff], [0x1234, 0x5678],
+  ];
+  for (let k = 0; k < 4; k++) {
+    operandPairs.push([Math.floor(rng() * 65536), Math.floor(rng() * 65536)]);
+  }
+  const cases = [];
+  for (let ctrl = 0; ctrl < 128; ctrl++) {
+    const zx = bit(ctrl, 5), nx = bit(ctrl, 4), zy = bit(ctrl, 3), ny = bit(ctrl, 2), f = bit(ctrl, 1), no = bit(ctrl, 0);
+    for (const [x, y] of operandPairs) {
+      const r = aluRef(x, y, zx, nx, zy, ny, f, no);
+      cases.push({
+        in: { x, y, zx, nx, zy, ny, f, no },
+        out: { out: r.out, zr: r.zr, ng: r.ng },
+        comment: `zx${zx}nx${nx}zy${zy}ny${ny}f${f}no${no}`,
+      });
+    }
+  }
+  write('alu.json', { chip: 'ALU', kind: 'comb', cases });
+}
+
 console.log('done.');
