@@ -1,0 +1,25 @@
+// R1 = 1+2+...+R0  (sum loop: labels, variable, predefined symbols)
+@R1
+M=0
+@i
+M=1
+(LOOP)
+@i
+D=M
+@R0
+D=D-M
+@END
+D;JGT
+@R1
+D=M
+@i
+D=D+M
+@R1
+M=D
+@i
+M=M+1
+@LOOP
+0;JMP
+(END)
+@END
+0;JMP
