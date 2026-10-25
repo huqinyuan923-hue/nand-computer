@@ -1,0 +1,16 @@
+/**
+ * Array: thin wrapper over Memory.alloc (n 16-bit cells).
+ */
+class Array {
+    function Array new(int size) {
+        if (size < 0) {
+            return 0;
+        }
+        return Memory.alloc(size);
+    }
+
+    function void dispose(Array a) {
+        do Memory.dealloc(a);
+        return;
+    }
+}

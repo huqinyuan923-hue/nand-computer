@@ -52,7 +52,16 @@ export function translateVm(commands: VmCommand[], opts: TranslateOptions): stri
     );
   }
 
-  for (const cmd of commands) {
+  for (let ci = 0; ci < commands.length; ci++) {
+    const cmd = commands[ci];
+    // peephole: push <seg> i ; push constant K ; add ; pop pointer 1
+    // -> THAT = <seg>[i] + K computed directly (6 asm instead of ~24)
+    const opt = tryOptArrayAddr(commands, ci, mod);
+    if (opt !== null) {
+      emit(...opt.lines);
+      ci += opt.consumed - 1;
+      continue;
+    }
     switch (cmd.type) {
       case "push":
         emitPush(cmd, mod);
@@ -152,6 +161,44 @@ export function translateVm(commands: VmCommand[], opts: TranslateOptions): stri
   }
 
   return out.join("\n") + "\n";
+
+  /** Recognize `push <seg> i; push constant K; add; pop pointer 1` (array address). */
+  function tryOptArrayAddr(
+    cmds: VmCommand[],
+    i: number,
+    modName: string,
+  ): { lines: string[]; consumed: number } | null {
+    const c0 = cmds[i];
+    const c1 = cmds[i + 1];
+    const c2 = cmds[i + 2];
+    const c3 = cmds[i + 3];
+    if (
+      c0 === undefined || c1 === undefined || c2 === undefined || c3 === undefined ||
+      c0.type !== "push" || c0.arg1 === undefined ||
+      c0.arg1 === "constant" ||
+      c1.type !== "push" || c1.arg1 !== "constant" ||
+      c2.type !== "add" ||
+      c3.type !== "pop" || c3.arg1 !== "pointer" || c3.arg2 !== 1
+    ) {
+      return null;
+    }
+    const K = c1.arg2!;
+    const seg = c0.arg1;
+    const idx = c0.arg2!;
+    let lines: string[];
+    if (seg in SEG_BASE) {
+      // push seg i yields RAM[BASE + i] (a stored pointer); THAT = ptr + K
+      lines = [`@${SEG_BASE[seg]}`, "D=M", `@${idx}`, "A=D+A", "D=M", `@${K}`, "D=D+A", "@THAT", "M=D"];
+    } else if (seg === "temp") {
+      // temp/static/pointer push the raw content at a fixed address
+      lines = [`@${5 + idx}`, "D=M", `@${K}`, "D=D+A", "@THAT", "M=D"];
+    } else if (seg === "pointer") {
+      lines = [`@${idx === 0 ? "THIS" : "THAT"}`, "D=M", `@${K}`, "D=D+A", "@THAT", "M=D"];
+    } else {
+      lines = [`@${modName}.${idx}`, "D=M", `@${K}`, "D=D+A", "@THAT", "M=D"];
+    }
+    return { lines, consumed: 4 };
+  }
 
   function emitPush(cmd: VmCommand, modName: string): void {
     const seg = cmd.arg1!;

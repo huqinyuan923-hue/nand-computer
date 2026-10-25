@@ -1,0 +1,157 @@
+/**
+ * String: fixed-capacity string of 16-bit chars stored in an Array.
+ * Spec constants: Backspace=8, Enter=13 (per SPEC.md keyboard mapping).
+ */
+class String {
+    field int maxLength;
+    field int len;
+    field Array data;
+
+    constructor String new(int maxLength_) {
+        if (maxLength_ < 0) {
+            let maxLength_ = 0;
+        }
+        let maxLength = maxLength_;
+        let len = 0;
+        let data = Memory.alloc(maxLength);
+        return this;
+    }
+
+    method void dispose() {
+        do Memory.dealloc(data);
+        do Memory.dealloc(this);
+        return;
+    }
+
+    method int length() {
+        return len;
+    }
+
+    method int maxLength() {
+        return maxLength;
+    }
+
+    method int charAt(int i) {
+        var Array p;
+        if ((i < 0) | (~(i < len))) {
+            return 0;
+        }
+        let p = data + i;
+        return p[0];
+    }
+
+    method void setCharAt(int i, int c) {
+        var Array p;
+        if ((i < 0) | (~(i < maxLength))) {
+            return;
+        }
+        let p = data + i;
+        let p[0] = c;
+        if (~(i < len)) {
+            let len = i + 1;
+        }
+        return;
+    }
+
+    method String appendChar(int c) {
+        if (~(len < maxLength)) {
+            return this; // full: ignore (documented; compiler literals never overflow)
+        }
+        do setCharAt(len, c);
+        return this;
+    }
+
+    method void eraseLastChar() {
+        if (len > 0) {
+            let len = len - 1;
+        }
+        return;
+    }
+
+    method int intValue() {
+        var int i;
+        var int n;
+        var int c;
+        var int neg;
+        let i = 0;
+        let n = 0;
+        let neg = 0;
+        if ((len > 0) & ((charAt(0) = 45) | (charAt(0) = 43))) { // '-' or '+'
+            if (charAt(0) = 45) {
+                let neg = 1;
+            }
+            let i = 1;
+        }
+        while (i < len) {
+            let c = charAt(i);
+            if ((c < 48) | (c > 57)) {
+                let i = len; // stop at first non-digit
+            } else {
+                let n = (n * 10) + (c - 48);
+                let i = i + 1;
+            }
+        }
+        if (neg = 1) {
+            return -n;
+        }
+        return n;
+    }
+
+    method void setInt(int n) {
+        var int i;
+        var int q;
+        var int r;
+        var int neg;
+        var Array digits;
+        var int nd;
+        let digits = Array.new(6); // max 5 digits + sign
+        let nd = 0;
+        let neg = 0;
+        let len = 0; // rewrite from scratch
+        if (n < 0) {
+            let neg = 1;
+            let n = -n;
+            if (n < 0) {
+                // n was -32768: emit '8' first and continue with 3276
+                let digits[0] = 56; // '8'
+                let nd = 1;
+                let n = 3276;
+            }
+        }
+        if (n = 0) {
+            let digits[0] = 48; // '0'
+            let nd = 1;
+        }
+        while (n > 0) {
+            let q = Math.divide(n, 10);
+            let r = n - (q * 10);
+            let digits[nd] = 48 + r;
+            let nd = nd + 1;
+            let n = q;
+        }
+        let i = 0;
+        if (neg = 1) {
+            do setCharAt(i, 45);
+            let i = i + 1;
+        }
+        while (nd > 0) {
+            let nd = nd - 1;
+            do setCharAt(i, digits[nd]);
+            let i = i + 1;
+        }
+        do digits.dispose();
+        return;
+    }
+
+    function int backSpace() {
+        return 8;
+    }
+
+    function int doubleQuote() {
+        return 34;
+    }
+
+    function int newLine() {
+        return 13;
+    }
+}

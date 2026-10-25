@@ -1,0 +1,27 @@
+/**
+ * Sys: program entry point. Initializes the OS subset, runs Main.main(),
+ * then parks in a halt loop.
+ */
+class Sys {
+    function void init() {
+        do Memory.init();
+        do Math.init();
+        do Screen.init();
+        do Output.init();
+        do Main.main();
+        do Sys.halt();
+        return;
+    }
+
+    function void halt() {
+        while (true) {
+        }
+        return;
+    }
+
+    function void error(int code) {
+        do Memory.dbgSet(7, code); // debug cell 0x3F07
+        do Sys.halt();
+        return;
+    }
+}

@@ -1,0 +1,10 @@
+/**
+ * Keyboard: reads the memory-mapped keyboard register (0x6000 = 24576).
+ * Keycodes per SPEC.md: 0 = none, printable = Unicode codepoint,
+ * Backspace=8, Tab=9, Enter=13, Esc=27, Left=37, Up=38, Right=39, Down=40.
+ */
+class Keyboard {
+    function int key() {
+        return Memory.peek(24576);
+    }
+}

@@ -150,11 +150,12 @@ function compileStatement(st: Stat, ctx: CompileCtx): void {
           ctx.errors.push({ line: st.line, msg: `'${st.name}' is not an array` });
           return;
         }
-        // addr = a + i; then value into that 0
+        // RHS first: its own a[j] reads use pointer 1 and would clobber a
+        // pre-computed write address. Value stack, then address, then store.
+        compileExpr(st.expr, ctx);
         compileExpr({ kind: "var", name: st.name, line: st.line }, ctx); // base
         compileExpr(st.index, ctx); // index
         out.push("add", "pop pointer 1");
-        compileExpr(st.expr, ctx);
         out.push("pop that 0");
       } else {
         compileExpr(st.expr, ctx);
@@ -164,10 +165,13 @@ function compileStatement(st: Stat, ctx: CompileCtx): void {
     }
     case "if": {
       const l0 = ctx.labelCount++;
+      const lThen = `${ctx.currentSub}$IF.${l0}.THEN`;
       const lElse = `${ctx.currentSub}$IF.${l0}.ELSE`;
       const lEnd = `${ctx.currentSub}$IF.${l0}.END`;
+      // cond; if-goto THEN; [else]; goto END; THEN: ... (no extra not: the
+      // expression's own ~ must survive intact)
       compileExpr(st.cond, ctx);
-      out.push("not", `if-goto ${lElse}`);
+      out.push(`if-goto ${lThen}`, `goto ${lElse}`, `label ${lThen}`);
       for (const s of st.then) compileStatement(s, ctx);
       out.push(`goto ${lEnd}`, `label ${lElse}`);
       if (st.else !== undefined) {
@@ -179,10 +183,11 @@ function compileStatement(st: Stat, ctx: CompileCtx): void {
     case "while": {
       const l0 = ctx.labelCount++;
       const lExp = `${ctx.currentSub}$WHILE.${l0}.EXP`;
+      const lBody = `${ctx.currentSub}$WHILE.${l0}.BODY`;
       const lEnd = `${ctx.currentSub}$WHILE.${l0}.END`;
       out.push(`label ${lExp}`);
       compileExpr(st.cond, ctx);
-      out.push("not", `if-goto ${lEnd}`);
+      out.push(`if-goto ${lBody}`, `goto ${lEnd}`, `label ${lBody}`);
       for (const s of st.body) compileStatement(s, ctx);
       out.push(`goto ${lExp}`, `label ${lEnd}`);
       return;

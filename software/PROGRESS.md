@@ -7,3 +7,4 @@
 - 2026-10-25 | M2 | hackrun 完成：行为级 ISA 解释器（1 指令=1 周期、old-A 跳转、SPEC 内存图、键盘注入、检查点 SHA-256 屏幕哈希），pipe CLI，21/21 测试
 - 2026-10-25 | M3 | VM 翻译器完成：全段 push/pop（含 static/temp/pointer）、全部算逻、label/goto/if-goto、function/call/return 调用帧、bootstrap 入口；黄金=hackrun 行为断言（递归 factorial 5!=120、段覆盖、负数比较、多模块 statics），31/31 测试。附带修复汇编器 JLT/JGE 编码互换 bug（由行为测试暴露）
 - 2026-10-25 | M4 | Jack 编译器完成：tokenizer/递归下降 parser/AST codegen→VM（类/静态/字段/构造器/方法/函数、完整表达式优先级、this、数组、字符串字面量、跨类符号解析）；黄金=TEST_OS+样例程序 hackrun 行为断言（38/38 测试）。修复：VM function/call 名不再加模块前缀（跨模块调用）、bootstrap 完整调用帧
+- 2026-10-25 | M5 | OS 子集完成（纯 Jack + 自家编译器）：Memory 自由表分配器、Array、Math(abs/min/max/multiply/divide 16 轮定长循环、-32768 边界)、String(intValue/setInt)、Output(8x8 字模 41 字形、词级渲染)、Screen(SPEC 像素映射、查表免除法、词级矩形)、Keyboard.key、Sys；ROM 29104<32768；hackrun 行为断言 46/46。修复编译器两个关键 bug：if/while 条件多发 not（带 ~ 的条件全反转）、let a[i]=含数组读的 RHS 覆盖 THAT 写地址（改为先 RHS 后地址）
