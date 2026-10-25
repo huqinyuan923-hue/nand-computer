@@ -39,7 +39,8 @@ const COMP_A1: Record<string, number> = {
 const DEST_BIT: Record<string, number> = { A: 0b100, D: 0b010, M: 0b001 };
 
 const JUMP: Record<string, number> = {
-  JGT: 0b001, JEQ: 0b010, JLT: 0b011, JGE: 0b100, JNE: 0b101, JLE: 0b110, JMP: 0b111,
+  // jump bits: bit0=JGT, bit1=JEQ, bit2=JLT (so JGE=011, JNE=101, JLE=110)
+  JGT: 0b001, JEQ: 0b010, JGE: 0b011, JLT: 0b100, JNE: 0b101, JLE: 0b110, JMP: 0b111,
 };
 
 const IDENT_RE = /^[A-Za-z_.$:][A-Za-z0-9_.$:]*$/;

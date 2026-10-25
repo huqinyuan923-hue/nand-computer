@@ -27,7 +27,8 @@ const DEST_BITS: Array<[string, number]> = [["A", 0b100], ["D", 0b010], ["M", 0b
 const JUMP_BY: string[] = new Array(8).fill("");
 {
   const j: Record<string, number> = {
-    JGT: 0b001, JEQ: 0b010, JLT: 0b011, JGE: 0b100, JNE: 0b101, JLE: 0b110, JMP: 0b111,
+    // bit0=JGT, bit1=JEQ, bit2=JLT
+    JGT: 0b001, JEQ: 0b010, JGE: 0b011, JLT: 0b100, JNE: 0b101, JLE: 0b110, JMP: 0b111,
   };
   for (const [s, v] of Object.entries(j)) JUMP_BY[v] = s;
 }

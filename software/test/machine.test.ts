@@ -161,6 +161,37 @@ test("watch reports value changes with completing cycle", () => {
   );
 });
 
+test("all 7 jump mnemonics take/not-take correctly (signed)", () => {
+  // Verifies encoding JGT=001, JEQ=010, JGE=011, JLT=100, JNE=101, JLE=110, JMP=111
+  // against positive/zero/negative comp results. taken -> RAM[100]=-1, not-taken -> 1.
+  const cases: Array<[string, boolean]> = [
+    ["D=1;JGT", true], ["D=0;JGT", false], ["D=-1;JGT", false],
+    ["D=0;JEQ", true], ["D=1;JEQ", false], ["D=-1;JEQ", false],
+    ["D=1;JGE", true], ["D=0;JGE", true], ["D=-1;JGE", false],
+    ["D=-1;JLT", true], ["D=0;JLT", false], ["D=1;JLT", false],
+    ["D=1;JNE", true], ["D=-1;JNE", true], ["D=0;JNE", false],
+    ["D=1;JLE", false], ["D=0;JLE", true], ["D=-1;JLE", true],
+    ["D=0;JMP", true], ["D=1;JMP", true], ["D=-1;JMP", true],
+  ];
+  for (const [instr, taken] of cases) {
+    const prog = assembleOrThrow([
+      "@100", "M=0",
+      "@8", // A = address of the taken block
+      instr,
+      "@100", "M=1", // not-taken path
+      "@10", "0;JMP",
+      "@100", "M=-1", // 8: taken path
+      "@10", "0;JMP", // 10: end
+    ].join("\n"));
+    const m = new HackMachine(prog);
+    m.run({ until: 50 });
+    assert.equal(
+      m.ram[100] === 0xffff, taken,
+      `${instr}: expected taken=${taken}, got RAM[100]=${m.ram[100]}`,
+    );
+  }
+});
+
 test("parseInputScript validates format and monotonicity", () => {
   assert.deepEqual(parseInputScript("5 65\n10 0\n"), [{ cycle: 5, key: 65 }, { cycle: 10, key: 0 }]);
   assert.deepEqual(parseInputScript("// comment\n7 37\n"), [{ cycle: 7, key: 37 }]);
