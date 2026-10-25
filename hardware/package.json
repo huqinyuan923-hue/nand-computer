@@ -8,6 +8,8 @@
     "test": "node --no-warnings test/index.test.ts",
     "gen:golden": "node --no-warnings tools/gen-golden.ts",
     "perf": "node --no-warnings tools/perf.ts",
+    "integ": "node --no-warnings tools/run-integration.ts",
+    "gen:demo": "node --no-warnings tools/gen-demo.ts",
     "web": "node --no-warnings tools/serve.ts",
     "check": "tsc --noEmit"
   },

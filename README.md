@@ -16,10 +16,13 @@ TypeScript 门级仿真：从 NAND / DFF 两个原语出发，逐层组合出完
 ```bash
 cd hardware
 npm install
-npm run gen:golden   # 重新生成确定性黄金向量（可选，仓库内已含）
-npm test             # node:test，全部黄金向量在 interp/jit 双后端下运行
+npm test             # 81 项：黄金向量（interp/jit 双后端）+ 随机对拍 + 性能 + 集成
+npm run perf         # 门级 CPU 基准（jit ≈ 60 万周期/秒，预算 10 万）
 npm run web          # 本地浏览器 demo（静态服务 + TS 即时转译，无构建产物）
+npm run integ -- --spec integration/software-asm.json   # headless 跨轨集成对拍
 ```
+
+里程碑进度见 [PROGRESS.md](PROGRESS.md)；跨轨集成状态见 [INTEGRATION.md](INTEGRATION.md)。
 
 ## 设计要点
 

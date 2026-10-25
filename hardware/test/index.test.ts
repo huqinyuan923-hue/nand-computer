@@ -4,3 +4,4 @@ import './golden-gates.test.ts';
 import './computer.test.ts';
 import './cpu-random.test.ts';
 import './perf.test.ts';
+import './integration.test.ts';

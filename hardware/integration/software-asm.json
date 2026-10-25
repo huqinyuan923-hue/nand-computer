@@ -1,0 +1,37 @@
+{
+ "cases": [
+  {
+   "name": "software-asm-kbdcopy",
+   "comment": "软件轨汇编器产物 kbdcopy.hack（RAM[SCREEN]=RAM[KBD]）跑门级计算机；键盘事件 cycle=2 写入 0x1234。期望哈希=行为级 oracle 推导（软件轨 hackrun 到位后以其复核）。",
+   "hack": "software/golden/asm/kbdcopy.hack",
+   "script": "2 4660\n",
+   "cycles": 20,
+   "checkpoints": [10],
+   "expect": {
+    "checkpoints": {"10": "8c8050e6531d67ac579b437228b3e66d6d6269737a58dbfea2612d49238d9b48"}
+   }
+  },
+  {
+   "name": "software-asm-sum",
+   "comment": "软件轨汇编器产物 sum.hack（R1=1+2+...+R0，符号/标签/循环）跑门级计算机；R0=10 → R1=55。",
+   "hack": "software/golden/asm/sum.hack",
+   "initRam": {"0": 10},
+   "cycles": 400,
+   "watch": [1],
+   "expect": {
+    "watch": {"1": 55}
+   }
+  },
+  {
+   "name": "hardware-demo-kbdbar",
+   "comment": "硬件轨 demo（屏幕首行显示 KBD）端到端：键盘事件 cycle=10 写 65，cycle=700 时首行 32 字全为 65。",
+   "hack": "hardware/web/demo-kbdbar.hack",
+   "script": "10 65\n",
+   "cycles": 1500,
+   "checkpoints": [700],
+   "expect": {
+    "checkpoints": {"700": "0dc315cb9c9b6c07dcb81909bbf6747072bd2206b959fae4a4af4b591f07f6ca"}
+   }
+  }
+ ]
+}
