@@ -1,0 +1,25 @@
+{
+ "chip": "Computer",
+ "kind": "computer-trace",
+ "comment": "RAM[16] = 5 + 3。手工推演：@5/D=A/@3/D=D+A/@16/M=D；resetCycles=1 使第 0 条指令执行两次。",
+ "rom": [
+  "0000000000000101",
+  "1110110000010000",
+  "0000000000000011",
+  "1110000010010000",
+  "0000000000010000",
+  "1110001100001000"
+ ],
+ "resetCycles": 1,
+ "cycles": 7,
+ "trace": [
+  {"pc": 0, "a": 0, "d": 0, "addressM": 0, "outM": null, "writeM": 0},
+  {"pc": 0, "a": 5, "d": 0, "addressM": 5, "outM": null, "writeM": 0},
+  {"pc": 1, "a": 5, "d": 0, "addressM": 5, "outM": 5, "writeM": 0},
+  {"pc": 2, "a": 5, "d": 5, "addressM": 5, "outM": null, "writeM": 0},
+  {"pc": 3, "a": 3, "d": 5, "addressM": 3, "outM": 8, "writeM": 0},
+  {"pc": 4, "a": 3, "d": 8, "addressM": 3, "outM": null, "writeM": 0},
+  {"pc": 5, "a": 16, "d": 8, "addressM": 16, "outM": 8, "writeM": 1}
+ ],
+ "finalRam": {"16": 8}
+}

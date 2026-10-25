@@ -1,0 +1,30 @@
+{
+ "chip": "Computer",
+ "kind": "computer-trace",
+ "comment": "屏幕写入 + 键盘读取：screen[0]=0xFFFF、screen[32]=1、KBD 事件 [6,65] → screen[64]=65。手工推演。",
+ "rom": [
+  "0100000000000000",
+  "1110111010001000",
+  "0100000000100000",
+  "1110111111001000",
+  "0110000000000000",
+  "1111110000010000",
+  "0100000001000000",
+  "1110001100001000"
+ ],
+ "keyboard": [[6, 65]],
+ "resetCycles": 1,
+ "cycles": 9,
+ "trace": [
+  {"pc": 0, "a": 0, "d": 0, "addressM": 0, "outM": null, "writeM": 0},
+  {"pc": 0, "a": 16384, "d": 0, "addressM": 16384, "outM": null, "writeM": 0},
+  {"pc": 1, "a": 16384, "d": 0, "addressM": 16384, "outM": 65535, "writeM": 1},
+  {"pc": 2, "a": 16384, "d": 0, "addressM": 16384, "outM": null, "writeM": 0},
+  {"pc": 3, "a": 16416, "d": 0, "addressM": 16416, "outM": 1, "writeM": 1},
+  {"pc": 4, "a": 16416, "d": 0, "addressM": 16416, "outM": null, "writeM": 0},
+  {"pc": 5, "a": 24576, "d": 0, "addressM": 24576, "outM": 65, "writeM": 0},
+  {"pc": 6, "a": 24576, "d": 65, "addressM": 24576, "outM": null, "writeM": 0},
+  {"pc": 7, "a": 16448, "d": 65, "addressM": 16448, "outM": 65, "writeM": 1}
+ ],
+ "finalScreenHash": "7e166101da084cd0ab80f5621d8d9dbac542f07299a1a299684f1f3192608e31"
+}

@@ -5,6 +5,9 @@ import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { Chip } from '../src/core/circuit.ts';
 import { REGISTRY } from '../src/chips/registry.ts';
+import { Computer } from '../src/chips/computer.ts';
+import { KeyboardDriver } from '../src/io/input.ts';
+import { screenHash } from '../src/io/screen.ts';
 
 export type Backend = 'interp' | 'jit';
 
@@ -56,10 +59,10 @@ function checkOutputs(chip: Chip, label: string, obj: Record<string, number | nu
 
 export function runGoldenFile(path: string, backend: Backend): void {
   const spec = JSON.parse(readFileSync(path, 'utf8')) as GoldenSpec;
-  const chip = makeChip(spec.chip, backend);
   const label = `${spec.chip}[${backend}]`;
 
   if (spec.kind === 'comb' || spec.kind === 'clocked') {
+    const chip = makeChip(spec.chip, backend);
     (spec.cases ?? []).forEach((cs, i) => {
       const cl = `${label} case#${i}`;
       if (spec.kind === 'comb') {
@@ -77,6 +80,35 @@ export function runGoldenFile(path: string, backend: Backend): void {
         }
       }
     });
+    return;
+  }
+  if (spec.kind === 'computer-trace') {
+    const comp = new Computer();
+    comp.cpu.useJit = backend === 'jit';
+    comp.loadRom((spec.rom ?? []).map((s) => parseInt(s, 2)));
+    for (const [k, v] of Object.entries(spec.initRam ?? {})) {
+      comp.mem.ram[Number(k) & 0x3fff] = v & 0xffff;
+    }
+    const drv = new KeyboardDriver((spec.keyboard ?? []).map(([cycle, keycode]) => ({ cycle, keycode })));
+    const resetCycles = spec.resetCycles ?? 1;
+    const total = spec.cycles ?? 0;
+    for (let n = 0; n < total; n++) {
+      drv.apply(n, (v) => comp.setKeyboard(v));
+      const rec = comp.step(n < resetCycles ? 1 : 0);
+      const t = spec.trace?.[n];
+      if (!t) continue;
+      for (const [k, v] of Object.entries(t)) {
+        if (v === null || v === undefined) continue; // 不关心（如 A 指令周期的 outM）
+        const actual = (rec as unknown as Record<string, number>)[k];
+        assert.equal(actual, v, `${label} cycle ${n} ${k}`);
+      }
+    }
+    for (const [k, v] of Object.entries(spec.finalRam ?? {})) {
+      assert.equal(comp.mem.ram[Number(k)], v, `${label} finalRam[${k}]`);
+    }
+    if (spec.finalScreenHash !== undefined) {
+      assert.equal(screenHash(comp.mem.screen), spec.finalScreenHash, `${label} finalScreenHash`);
+    }
     return;
   }
   throw new Error(`未知 kind: ${spec.kind}`);
