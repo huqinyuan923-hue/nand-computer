@@ -114,6 +114,12 @@ export function translateVm(commands: VmCommand[], opts: TranslateOptions): stri
         break;
       }
       case "eq": case "gt": case "lt": {
+        // Reference semantics: signed test on the wrapped 16-bit x-y, like the
+        // nand2tetris translator. For opposite-sign operands whose difference
+        // overflows (|x-y| >= 32768) gt/lt disagree with mathematical x>y.
+        // An overflow-safe sequence costs ~14 extra words per site; Tetris has
+        // 76 comparisons and only ~200 words of ROM headroom, so the compact
+        // form is deliberate. test/vm.test.ts pins the behaviour.
         const labelTrue = fresh(cmd.type.toUpperCase());
         const labelEnd = fresh(cmd.type.toUpperCase() + ".END");
         const jump = cmd.type === "eq" ? "JEQ" : cmd.type === "gt" ? "JGT" : "JLT";

@@ -254,28 +254,135 @@ export class HackMachine {
     let haltReason: RunResult["haltReason"] =
       stopCycle >= maxCycles ? "max-cycles" : "until";
 
-    let cpIdx = 0;
-    const fire = (cycle: number): void => {
-      const snap = this.snapshot();
-      snap.cycle = cycle;
-      checkpoints.push(snap);
-    };
-    // checkpoints for cycles already completed by earlier runs
-    while (cpIdx < cpCycles.length && cpCycles[cpIdx] < this.cycle) {
-      fire(cpCycles[cpIdx]);
-      cpIdx++;
+    // A checkpoint that was already completed by an earlier run() cannot be
+    // reconstructed (the state is gone), so surface the misuse instead of
+    // returning a snapshot mislabeled with an old cycle.
+    if (cpCycles.length > 0 && cpCycles[0] < this.cycle) {
+      throw new Error(
+        `checkpoint cycle ${cpCycles[0]} already passed (machine is at cycle ${this.cycle})`,
+      );
     }
 
-    while (this.cycle <= stopCycle) {
-      if (!this.step()) {
+    // Hot loop keeps the machine state in locals; step() remains the reference
+    // implementation and must stay byte-for-byte equivalent (see fuzz tests).
+    const program = this.program;
+    const ram = this.ram;
+    const input = this.input;
+    let inputIdx = this.inputIdx;
+    let currentKey = this.currentKey;
+    let a = this.a;
+    let d = this.d;
+    let pc = this.pc;
+    let cycle = this.cycle;
+    let halted = this.halted;
+    const watchAddrs = this.watch.size > 0 ? [...this.watch] : [];
+    const watchLast = watchAddrs.map((addr) => this.lastWatchValues.get(addr) ?? 0);
+
+    const fire = (cpCycle: number): void => {
+      checkpoints.push({
+        cycle: cpCycle,
+        a,
+        d,
+        pc,
+        sp: ram[0],
+        screenSha256: screenSha256(ram.subarray(SCREEN_START, SCREEN_END)),
+      });
+    };
+
+    let cpIdx = 0;
+    while (cycle <= stopCycle) {
+      if (halted) {
         haltReason = "end-of-program";
         break;
       }
-      // instructions at cycles 0..this.cycle-1 have completed; fire due checkpoints
-      while (cpIdx < cpCycles.length && cpCycles[cpIdx] < this.cycle) {
+      const t = cycle;
+      while (inputIdx < input.length && input[inputIdx].cycle <= t) {
+        currentKey = input[inputIdx].key;
+        inputIdx++;
+      }
+      ram[KBD_ADDR] = currentKey & 0xffff;
+
+      const fetchPc = pc;
+      if (fetchPc >= program.length) {
+        halted = true;
+        haltReason = "end-of-program";
+        break;
+      }
+      const instr = program[fetchPc];
+      if ((instr & 0x8000) === 0) {
+        a = instr & 0x7fff;
+        pc = (fetchPc + 1) & 0x7fff;
+      } else {
+        const aBit = (instr >> 12) & 1;
+        const comp = (instr >> 6) & 0x3f;
+        const dest = (instr >> 3) & 0x7;
+        const jump = instr & 0x7;
+        const aVal = a;
+        const mVal = aBit ? (aVal <= 0x6000 ? ram[aVal] : 0) : aVal;
+        let out: number;
+        switch (comp) {
+          case 0b101010: out = 0; break;
+          case 0b111111: out = 1; break;
+          case 0b111010: out = 0xffff; break;
+          case 0b001100: out = d; break;
+          case 0b110000: out = mVal; break;
+          case 0b001101: out = ~d & 0xffff; break;
+          case 0b110001: out = ~mVal & 0xffff; break;
+          case 0b001111: out = -d & 0xffff; break;
+          case 0b110011: out = -mVal & 0xffff; break;
+          case 0b011111: out = (d + 1) & 0xffff; break;
+          case 0b110111: out = (mVal + 1) & 0xffff; break;
+          case 0b001110: out = (d - 1) & 0xffff; break;
+          case 0b110010: out = (mVal - 1) & 0xffff; break;
+          case 0b000010: out = (d + mVal) & 0xffff; break;
+          case 0b010011: out = (d - mVal) & 0xffff; break;
+          case 0b000111: out = (mVal - d) & 0xffff; break;
+          case 0b000000: out = d & mVal; break;
+          case 0b010101: out = d | mVal; break;
+          default: out = 0; break;
+        }
+        if (dest & 0b100) a = out;
+        if (dest & 0b010) d = out;
+        if (dest & 0b001) {
+          if (aVal < 0x6000) ram[aVal] = out;
+        }
+        let nextPc = (fetchPc + 1) & 0x7fff;
+        if (jump !== 0) {
+          const sOut = out > 0x7fff ? out - 0x10000 : out;
+          const take =
+            (jump & 0b001 && sOut > 0) ||
+            (jump & 0b010 && sOut === 0) ||
+            (jump & 0b100 && sOut < 0);
+          if (take) nextPc = aVal & 0x7fff;
+        }
+        pc = nextPc;
+      }
+      cycle = t + 1;
+
+      if (watchAddrs.length > 0) {
+        for (let i = 0; i < watchAddrs.length; i++) {
+          const v = ram[watchAddrs[i]];
+          if (watchLast[i] !== v) {
+            watchLast[i] = v;
+            this.onWatch.push({ cycle: t, addr: watchAddrs[i], value: v });
+          }
+        }
+      }
+      while (cpIdx < cpCycles.length && cpCycles[cpIdx] < cycle) {
         fire(cpCycles[cpIdx]);
         cpIdx++;
       }
+    }
+
+    this.a = a;
+    this.d = d;
+    this.pc = pc;
+    this.cycle = cycle;
+    this.halted = halted;
+    this.inputIdx = inputIdx;
+    this.currentKey = currentKey;
+    for (let i = 0; i < watchAddrs.length; i++) {
+      this.lastWatchValues.set(watchAddrs[i], watchLast[i]);
     }
 
     return {

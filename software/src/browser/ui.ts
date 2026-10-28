@@ -27,6 +27,7 @@ function context2d(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
 const canvas = document.getElementById("screen") as HTMLCanvasElement;
 const ctx = context2d(canvas);
 const pixels = ctx.createImageData(SCREEN_W, SCREEN_H);
+const prevScreen = new Uint16Array(SCREEN_W / 16 * SCREEN_H);
 const statusEl = document.getElementById("status") as HTMLElement;
 const scoreEl = document.getElementById("score") as HTMLElement;
 const speedEl = document.getElementById("speed") as HTMLInputElement;
@@ -45,24 +46,45 @@ let showKcps = 0;
 
 const s16 = (v: number): number => (v > 0x7fff ? v - 0x10000 : v);
 
-function draw(): void {
+/**
+ * Repaint changed screen words only. A full frame is 512x256 px; a Tetris move
+ * touches a handful of words, so the dirty rect keeps putImageData cheap while
+ * producing exactly the same canvas as a full repaint.
+ */
+function draw(full = false): void {
   if (core === null) return;
   const data = pixels.data;
-  let p = 0;
-  for (let y = 0; y < SCREEN_H; y++) {
-    const base = 0x4000 + y * 32;
-    for (let wx = 0; wx < 32; wx++) {
-      const word = core.ram[base + wx];
+  const ram = core.ram;
+  let minRow = SCREEN_H;
+  let maxRow = -1;
+  let minCol = 32;
+  let maxCol = -1;
+  for (let row = 0; row < SCREEN_H; row++) {
+    const base = 0x4000 + row * 32;
+    for (let col = 0; col < 32; col++) {
+      const word = ram[base + col];
+      const shadow = base - 0x4000 + col;
+      if (!full && word === prevScreen[shadow]) continue;
+      prevScreen[shadow] = word;
+      let p = shadow * 64;
       for (let b = 15; b >= 0; b--) {
         const lit = (word >> b) & 1;
-        data[p++] = lit ? 244 : 12;
-        data[p++] = lit ? 244 : 14;
-        data[p++] = lit ? 236 : 20;
-        data[p++] = 255;
+        data[p] = lit ? 244 : 12;
+        data[p + 1] = lit ? 244 : 14;
+        data[p + 2] = lit ? 236 : 20;
+        data[p + 3] = 255;
+        p += 4;
       }
+      if (row < minRow) minRow = row;
+      if (row > maxRow) maxRow = row;
+      if (col < minCol) minCol = col;
+      if (col > maxCol) maxCol = col;
     }
   }
-  ctx.putImageData(pixels, 0, 0);
+  if (full) ctx.putImageData(pixels, 0, 0);
+  else if (maxRow >= 0) {
+    ctx.putImageData(pixels, 0, 0, minCol * 16, minRow, (maxCol - minCol + 1) * 16, maxRow - minRow + 1);
+  }
 }
 
 function restart(withScript: boolean): void {
@@ -74,7 +96,7 @@ function restart(withScript: boolean): void {
   fpsCycle = 0;
   fpsTime = performance.now();
   pauseBtn.textContent = "暂停";
-  draw();
+  draw(true);
 }
 
 function cyclesPerFrame(): number {

@@ -135,11 +135,90 @@ export class HackCore {
     return true;
   }
 
-  /** Execute up to `cycles` instructions; stops early when the program halts. */
+  /**
+   * Execute up to `cycles` instructions; stops early when the program halts.
+   * Locals-based copy of step() because this is the demo's hot path.
+   */
   run(cycles: number): void {
-    for (let i = 0; i < cycles; i++) {
-      if (!this.step()) return;
+    const rom = this.rom;
+    const ram = this.ram;
+    const script = this.script;
+    let scriptIdx = this.scriptIdx;
+    let key = this.key;
+    let a = this.a;
+    let d = this.d;
+    let pc = this.pc;
+    let cycle = this.cycle;
+    let halted = this.halted;
+    const stopCycle = cycle + cycles;
+    while (cycle < stopCycle) {
+      if (halted) break;
+      const t = cycle;
+      while (scriptIdx < script.length && script[scriptIdx].cycle <= t) {
+        key = script[scriptIdx].key;
+        scriptIdx++;
+      }
+      ram[KBD_ADDR] = key & 0xffff;
+      if (pc >= rom.length) {
+        halted = true;
+        break;
+      }
+      const instr = rom[pc];
+      if ((instr & 0x8000) === 0) {
+        a = instr & 0x7fff;
+        pc = (pc + 1) & 0x7fff;
+      } else {
+        const aVal = a;
+        const mVal = (instr >> 12) & 1 ? (aVal <= KBD_ADDR ? ram[aVal] : 0) : aVal;
+        const dest = (instr >> 3) & 0x7;
+        let out: number;
+        switch ((instr >> 6) & 0x3f) {
+          case 0b101010: out = 0; break;
+          case 0b111111: out = 1; break;
+          case 0b111010: out = 0xffff; break;
+          case 0b001100: out = d; break;
+          case 0b110000: out = mVal; break;
+          case 0b001101: out = ~d & 0xffff; break;
+          case 0b110001: out = ~mVal & 0xffff; break;
+          case 0b001111: out = -d & 0xffff; break;
+          case 0b110011: out = -mVal & 0xffff; break;
+          case 0b011111: out = (d + 1) & 0xffff; break;
+          case 0b110111: out = (mVal + 1) & 0xffff; break;
+          case 0b001110: out = (d - 1) & 0xffff; break;
+          case 0b110010: out = (mVal - 1) & 0xffff; break;
+          case 0b000010: out = (d + mVal) & 0xffff; break;
+          case 0b010011: out = (d - mVal) & 0xffff; break;
+          case 0b000111: out = (mVal - d) & 0xffff; break;
+          case 0b000000: out = d & mVal; break;
+          case 0b010101: out = d | mVal; break;
+          default: out = 0; break;
+        }
+        if (dest & 0b100) a = out;
+        if (dest & 0b010) d = out;
+        if (dest & 0b001 && aVal < KBD_ADDR) ram[aVal] = out;
+        let nextPc = (pc + 1) & 0x7fff;
+        const jump = instr & 0x7;
+        if (jump !== 0) {
+          const sOut = out > 0x7fff ? out - 0x10000 : out;
+          if (
+            (jump & 0b001 && sOut > 0) ||
+            (jump & 0b010 && sOut === 0) ||
+            (jump & 0b100 && sOut < 0)
+          ) {
+            nextPc = aVal & 0x7fff;
+          }
+        }
+        pc = nextPc;
+      }
+      cycle = t + 1;
     }
+    this.a = a;
+    this.d = d;
+    this.pc = pc;
+    this.cycle = cycle;
+    this.halted = halted;
+    this.scriptIdx = scriptIdx;
+    this.key = key;
   }
 }
 

@@ -133,6 +133,18 @@ test("halt at end of program; checkpoints dedup and sort", () => {
   assert.equal(r2.cyclesExecuted, 4); // cycles 0..3 executed to complete cp=3
 });
 
+test("checkpoints already in the past are rejected instead of fabricated", () => {
+  const prog = assembleOrThrow(["@1", "D=A", "@2", "M=D", "@0", "0;JMP"].join("\n"));
+  const m = new HackMachine(prog);
+  m.run({ until: 4 });
+  assert.equal(m.cycle, 5);
+  assert.throws(() => m.run({ checkpoints: [4, 10] }), /already passed/);
+  assert.equal(m.cycle, 5, "rejected run must not advance the machine");
+  const r = m.run({ checkpoints: [5] }); // current boundary is still valid
+  assert.deepEqual(r.checkpoints.map((c) => c.cycle), [5]);
+  assert.equal(r.checkpoints[0].a, m.a);
+});
+
 test("screen hash matches SPEC definition (node:crypto reference)", () => {
   const prog = assembleOrThrow([
     "@4660", "D=A", "@16384", "M=D", // RAM[0x4000] = 0x1234

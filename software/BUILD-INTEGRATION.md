@@ -21,13 +21,23 @@ ROM 与输入脚本由闭环录制工具 `tools/record-tetris.mjs` 生成：它�
 ```bash
 cd software
 npm install        # 仅 devDependencies（typescript、@types/node）；运行时零依赖
-npm test           # tsc + node:test：53/53
+npm test           # tsc + node:test：58/58（含 1000 例种子化差分）
 npm run build:tetris        # 只建 ROM：stdout=.hack，stderr=ROM 占用量，溢出退出码 1
 npm run record:tetris       # 重录 golden/（约 10 秒：构建 + 驱动真实 ROM + 回放校验）
 npm run build:demo          # tsc -p tsconfig.demo.json + 拷贝 golden 资产到 demo/
 ```
 
 `npm test` 覆盖：汇编器/VM/编译器/OS 各自黄金、Tetris ROM 与黄金镜像逐字比对（含 32K 预算护栏）、7 个检查点的行为级回放哈希、`hackrun` CLI 独立复跑哈希、以及浏览器引擎 `HackCore` 与 oracle 的逐指令对拍（寄存器 + 全内存镜像）和对全部检查点哈希的回放。
+
+`test/fuzz.test.ts` 另含 1000 例固定种子（mulberry32）随机差分，失败可复现：
+
+- 500 例随机 Hack 程序：`step()`（参考实现）vs 快速 `run()` vs `HackCore`，随机键盘脚本/监视地址/检查点，寄存器、全内存、监视事件、检查点屏幕哈希全部逐点一致。
+- 400 例随机 VM 表达式（深度 ≤4 的 add/sub/and/or/neg/not/eq/gt/lt 树）：翻译 + 汇编 + 真实 `HackMachine` 执行，结果对拍 JS 16 位 oracle。
+- 100 例随机汇编输入：前后向标签、预定义符号、随机 C 指令，逐字对拍独立规范编码器。
+
+性能（本机 60M 周期基准，best-of-3）：`HackMachine` 约 95M 周期/秒，浏览器 `HackCore` 约 105M 周期/秒；demo 只对变化屏幕字做脏矩形重绘。
+
+已知语义边界：VM `gt/lt` 采用 nand2tetris 参考翻译器的“16 位环绕差值”判定；异号且 `|x-y| >= 32768` 时与数学比较不符。防溢出内联展开每处约 +14 字，Tetris 有 76 处比较、ROM 余量仅约 228 字，故保留紧凑实现（`src/vm/translate.ts` 注释、`test/vm.test.ts` 有固定用例）。Tetris 实际比较数值远小于 32768，行为不受影响。
 
 ## 3. 哈希与检查点口径（跨轨统一）
 
