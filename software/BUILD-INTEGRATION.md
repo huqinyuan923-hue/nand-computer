@@ -85,6 +85,17 @@ python -m http.server 8000     # 任意静态服务器均可；必须走 HTTP，
 - 「回放脚本」从零加载黄金 `input.txt` 并以 600k 周期/帧运行，可看到消行与 `SCORE 100`；「重启」「暂停/继续」随时可用。HUD 的 `LINES/SCORE` 读自游戏写入的调试单元 `0x3F05/0x3F06`。
 - 已用 Chromium（headless）实测：开机画面渲染、按住 → 方块移动、回放至 `LINES 1 · SCORE 100`、控制台无错误。
 
+### 线上 demo
+
+- 地址：**https://nand-computer-demo.pages.dev**（Cloudflare Pages 项目 `nand-computer-demo`，生产分支 `main`）。自定义域名未配置，留给主会话处理。
+- 重新发布（wrangler 4.x；授权用 `wrangler login` 或 `CLOUDFLARE_API_TOKEN`）：
+  ```bash
+  cd software
+  npm run build:demo
+  npx wrangler pages deploy demo --project-name nand-computer-demo --branch main
+  ```
+- 发布后复核：直接加载一次页面（让 Pages 边缘缓存生效），再比对线上 `tetris.hack` 的 SHA-256 与 `golden/tetris/tetris.hack` 一致。2026-10-28 实测线上 `tetris.hack` 哈希一致，Chromium 中开机渲染、方向键移动、黄金脚本回放（`LINES 1 · SCORE 100`）均正常，控制台零错误。
+
 ## 6. 复现与边界
 
 - 从源码重建全部黄金产物：`npm test && npm run record:tetris && npm run build:demo`。录制工具写盘前会从零回放并核对 7 个检查点哈希，不一致直接失败。
