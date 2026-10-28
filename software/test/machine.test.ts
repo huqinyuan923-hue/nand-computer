@@ -204,6 +204,7 @@ test("screenAscii marks 8x8 blocks", () => {
   m.run({ until: 5 });
   const ascii = m.screenAscii();
   assert.equal(ascii.split("\n").length, 33);
-  assert.equal(ascii[0], "#"); // words 0-1 of row 0: word 0 = 0xFFFF
-  assert.equal(ascii[1], "."); // words 2-3 of row 0 untouched
+  assert.equal(ascii[0], "#"); // block 0 = high byte of word 0 = 0xFF
+  assert.equal(ascii[1], "#"); // block 1 = low byte of word 0 = 0xFF
+  assert.equal(ascii[2], "."); // block 2 = word 1 = 0
 });

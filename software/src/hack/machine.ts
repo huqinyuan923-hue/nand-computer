@@ -211,8 +211,7 @@ export class HackMachine {
     };
   }
 
-  /** Render the screen as ASCII ('#'/'.') for debugging: 256 rows x 512 cols is huge,
-   *  so downsample each 8x8 block to one char. */
+  /** Render the screen as ASCII ('#'/'.'): 64x32 grid of 8x8-pixel blocks. */
   screenAscii(): string {
     let out = "";
     for (let by = 0; by < 32; by++) {
@@ -220,9 +219,9 @@ export class HackMachine {
         let any = false;
         outer:
         for (let py = 0; py < 8; py++) {
-          const word = this.ram[SCREEN_START + (by * 8 + py) * 32 + bx * 2];
-          const word2 = this.ram[SCREEN_START + (by * 8 + py) * 32 + bx * 2 + 1];
-          if (word !== 0 || word2 !== 0) {
+          const word = this.ram[SCREEN_START + (by * 8 + py) * 32 + (bx >> 1)];
+          const v = (bx & 1) === 0 ? (word >>> 8) & 0xff : word & 0xff;
+          if (v !== 0) {
             any = true;
             break outer;
           }

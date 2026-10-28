@@ -37,6 +37,7 @@ interface CompileCtx {
   subSyms: SymTable;
   labelCount: number;
   subroutineKinds: Map<string, "method" | "function" | "constructor">; // global across classes
+  subroutineRets: Map<string, Type>; // global: return type per full sub name
   classFields: Map<string, number>; // class -> field count (for constructors)
   currentReturnType: Type;
   isMethod: boolean;
@@ -52,6 +53,7 @@ export function compileClass(
   cross: {
     subroutineKinds?: Map<string, "method" | "function" | "constructor">;
     classFields?: Map<string, number>;
+    subroutineRets?: Map<string, Type>;
   } = {},
 ): CodegenResult {
   const errors: Array<{ line: number; msg: string }> = [];
@@ -73,16 +75,18 @@ export function compileClass(
   }
   const subroutineKinds = cross.subroutineKinds ?? new Map<string, "method" | "function" | "constructor">();
   const classFields = cross.classFields ?? new Map<string, number>();
+  const subroutineRets = cross.subroutineRets ?? new Map<string, Type>();
   classFields.set(cls.name, fieldIdx);
   for (const sub of cls.subroutines) {
     subroutineKinds.set(sub.name, sub.kind);
+    subroutineRets.set(sub.name, sub.retType);
   }
 
   for (const sub of cls.subroutines) {
     compileSubroutine(cls, sub, {
       errors, out, className: cls.name, currentSub: sub.name,
       classSyms, subSyms: {}, labelCount: 0,
-      subroutineKinds, classFields,
+      subroutineKinds, classFields, subroutineRets,
       currentReturnType: sub.retType, isMethod: sub.kind === "method",
     });
   }
@@ -121,19 +125,50 @@ function compileSubroutine(cls: ClassDecl, sub: SubroutineDec, ctx: CompileCtx):
     out.push(`push constant ${n}`, "call Memory.alloc 1", "pop pointer 0");
   }
   for (const st of sub.body) compileStatement(st, ctx);
-  // implicit return for void/missing returns
-  if (sub.retType === "void") {
-    out.push("push constant 0", "return");
-  } else {
-    // ensure every path returns; add safety return so VM stays well-formed
-    out.push("push constant 0", "return");
+  // implicit return only when the body can fall through (last stmt isn't return).
+  // void functions push no value: their callers (do-statements) skip the pop.
+  const last = sub.body[sub.body.length - 1];
+  if (last === undefined || last.kind !== "return") {
+    if (sub.retType === "void") {
+      out.push("return");
+    } else {
+      out.push("push constant 0", "return");
+    }
   }
 }
 
-function lookup(ctx: CompileCtx, name: string): SymEntry | null {
-  if (name in ctx.subSyms) return ctx.subSyms[name];
+/** Resolve the fully-qualified callee name for a call expression. */
+function calleeFullName(ctx: CompileCtx, call: Extract<Expr, { kind: "call" }>): string {
+  if (call.target === undefined) {
+    return `${ctx.className}.${call.name}`;
+  }
+  const sym = lookup(ctx, call.target);
+  if (sym !== null && !sym.type.endsWith("[]") && !isPrimitiveScalar(sym.type)) {
+    return `${sym.type}.${call.name}`;
+  }
+  return `${call.target}.${call.name}`;
+}
+
+function lookup(ctx: CompileCtx, name: string): SymEntry | null {  if (name in ctx.subSyms) return ctx.subSyms[name];
   if (name in ctx.classSyms) return ctx.classSyms[name];
   return null;
+}
+
+/**
+ * Emit a boolean condition, optionally inverted with ONE statement-level not.
+ * A top-level `~cond` in the source folds into that single not (never doubled).
+ */
+function emitCond(cond: Expr, ctx: CompileCtx, invert: boolean): void {
+  if (invert) {
+    if (cond.kind === "unary" && cond.op === "~") {
+      compileExpr(cond.expr, ctx);
+    } else {
+      compileExpr(cond, ctx);
+      ctx.out.push("not");
+    }
+  } else {
+    compileExpr(cond, ctx);
+  }
 }
 
 function compileStatement(st: Stat, ctx: CompileCtx): void {
@@ -168,41 +203,51 @@ function compileStatement(st: Stat, ctx: CompileCtx): void {
       const lThen = `${ctx.currentSub}$IF.${l0}.THEN`;
       const lElse = `${ctx.currentSub}$IF.${l0}.ELSE`;
       const lEnd = `${ctx.currentSub}$IF.${l0}.END`;
-      // cond; if-goto THEN; [else]; goto END; THEN: ... (no extra not: the
-      // expression's own ~ must survive intact)
-      compileExpr(st.cond, ctx);
-      out.push(`if-goto ${lThen}`, `goto ${lElse}`, `label ${lThen}`);
-      for (const s of st.then) compileStatement(s, ctx);
-      out.push(`goto ${lEnd}`, `label ${lElse}`);
-      if (st.else !== undefined) {
+      if (st.else === undefined) {
+        // short form: ONE statement-level not (a source-level top-level ~
+        // folds into it, never doubled)
+        emitCond(st.cond, ctx, true);
+        out.push(`if-goto ${lEnd}`);
+        for (const s of st.then) compileStatement(s, ctx);
+        out.push(`label ${lEnd}`);
+      } else {
+        // cond; if-goto THEN; goto ELSE; THEN: ... (no extra not: the
+        // expression's own ~ must survive intact)
+        compileExpr(st.cond, ctx);
+        out.push(`if-goto ${lThen}`, `goto ${lElse}`, `label ${lThen}`);
+        for (const s of st.then) compileStatement(s, ctx);
+        out.push(`goto ${lEnd}`, `label ${lElse}`);
         for (const s of st.else) compileStatement(s, ctx);
+        out.push(`label ${lEnd}`);
       }
-      out.push(`label ${lEnd}`);
       return;
     }
     case "while": {
       const l0 = ctx.labelCount++;
       const lExp = `${ctx.currentSub}$WHILE.${l0}.EXP`;
-      const lBody = `${ctx.currentSub}$WHILE.${l0}.BODY`;
       const lEnd = `${ctx.currentSub}$WHILE.${l0}.END`;
       out.push(`label ${lExp}`);
-      compileExpr(st.cond, ctx);
-      out.push(`if-goto ${lBody}`, `goto ${lEnd}`, `label ${lBody}`);
+      emitCond(st.cond, ctx, true);
+      out.push(`if-goto ${lEnd}`);
       for (const s of st.body) compileStatement(s, ctx);
       out.push(`goto ${lExp}`, `label ${lEnd}`);
       return;
     }
     case "do": {
       compileExpr(st.call, ctx);
-      out.push("pop temp 0");
+      // void callees leave no value on the stack — nothing to discard
+      if (ctx.subroutineRets.get(calleeFullName(ctx, st.call)) !== "void") {
+        out.push("pop temp 0");
+      }
       return;
     }
     case "return": {
       if (st.expr !== undefined) {
         compileExpr(st.expr, ctx);
-      } else {
+      } else if (ctx.currentReturnType !== "void") {
         out.push("push constant 0");
       }
+      // void returns carry no value (paired with do-callers that skip the pop)
       out.push("return");
       return;
     }

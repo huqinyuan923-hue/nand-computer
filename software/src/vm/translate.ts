@@ -62,6 +62,31 @@ export function translateVm(commands: VmCommand[], opts: TranslateOptions): stri
       ci += opt.consumed - 1;
       continue;
     }
+    // peephole: the address pattern followed by push constant V ; pop that 0
+    // -> direct store of V at <seg>[i]+K without touching THAT's stack traffic
+    const optStore = tryOptArrayStore(commands, ci, mod);
+    if (optStore !== null) {
+      emit(...optStore.lines);
+      ci += optStore.consumed - 1;
+      continue;
+    }
+    // peephole: variable-index array READ via pointer 1
+    const optRead = tryOptArrayRead(commands, ci, mod);
+    if (optRead !== null) {
+      emit(...optRead.lines);
+      ci += optRead.consumed - 1;
+      continue;
+    }
+    // peephole: method prologue push argument 0; pop pointer 0 -> THIS = *ARG
+    if (
+      cmd.type === "push" && cmd.arg1 === "argument" && cmd.arg2 === 0 &&
+      commands[ci + 1] !== undefined && commands[ci + 1].type === "pop" &&
+      commands[ci + 1].arg1 === "pointer" && commands[ci + 1].arg2 === 0
+    ) {
+      emit("@ARG", "D=M", "@0", "A=D+A", "D=M", "@THIS", "M=D");
+      ci += 1;
+      continue;
+    }
     switch (cmd.type) {
       case "push":
         emitPush(cmd, mod);
@@ -114,10 +139,12 @@ export function translateVm(commands: VmCommand[], opts: TranslateOptions): stri
         emit("@SP", "M=M-1", "A=M", "D=M", `@${mod}$${cmd.arg1}`, "D;JNE");
         break;
       case "function": {
-        // function names are fully qualified (Class.sub) and global — no prefix
+        // function names are fully qualified (Class.sub) and global — no prefix.
+        // Locals init via push constant 0 (4 words each with the short form,
+        // and it advances SP past the locals — the direct-store form would not).
         emit(`(${cmd.arg1})`);
         for (let i = 0; i < (cmd.arg2 ?? 0); i++) {
-          emit("@SP", "M=M+1", "A=M-1", "M=0");
+          emitPush({ type: "push", arg1: "constant", arg2: 0, line: cmd.line }, mod);
         }
         break;
       }
@@ -128,10 +155,9 @@ export function translateVm(commands: VmCommand[], opts: TranslateOptions): stri
         for (const base of ["LCL", "ARG", "THIS", "THAT"]) {
           emit(`@${base}`, "D=M", "@SP", "M=M+1", "A=M-1", "M=D");
         }
-        // ARG = SP - nargs - 5
+        // ARG = SP - (nargs + 5), LCL = SP
         emit(
-          "@SP", "D=M", `@${cmd.arg2}`, "D=D-A", "@5", "D=D-A", "@ARG", "M=D",
-          // LCL = SP
+          "@SP", "D=M", `@${(cmd.arg2 ?? 0) + 5}`, "D=D-A", "@ARG", "M=D",
           "@SP", "D=M", "@LCL", "M=D",
           // goto f (global function name)
           `@${cmd.arg1}`, "0;JMP",
@@ -200,6 +226,85 @@ export function translateVm(commands: VmCommand[], opts: TranslateOptions): stri
     return { lines, consumed: 4 };
   }
 
+  /** Recognize the address pattern + `push constant V; pop that 0` (const store). */
+  function tryOptArrayStore(
+    cmds: VmCommand[],
+    i: number,
+    modName: string,
+  ): { lines: string[]; consumed: number } | null {
+    const addr = tryOptArrayAddr(cmds, i, modName);
+    if (addr === null) return null;
+    const c4 = cmds[i + 4];
+    const c5 = cmds[i + 5];
+    if (
+      c4 === undefined || c5 === undefined ||
+      c4.type !== "push" || c4.arg1 !== "constant" ||
+      c5.type !== "pop" || c5.arg1 !== "that" || c5.arg2 !== 0
+    ) {
+      return null;
+    }
+    const K = cmds[i + 1].arg2!;
+    const V = c4.arg2!;
+    const seg = cmds[i].arg1!;
+    const idx = cmds[i].arg2!;
+    let head: string[];
+    if (seg in SEG_BASE) {
+      head = [`@${SEG_BASE[seg]}`, "D=M", `@${idx}`, "A=D+A", "D=M", `@${K}`, "D=D+A"];
+    } else if (seg === "temp") {
+      head = [`@${5 + idx}`, "D=M", `@${K}`, "D=D+A"];
+    } else if (seg === "pointer") {
+      head = [`@${idx === 0 ? "THIS" : "THAT"}`, "D=M", `@${K}`, "D=D+A"];
+    } else {
+      head = [`@${modName}.${idx}`, "D=M", `@${K}`, "D=D+A"];
+    }
+    const lines = [
+      ...head, "@R13", "M=D",
+      `@${V}`, "D=A", "@SP", "M=M+1", "A=M-1", "M=D",
+      "@SP", "M=M-1", "A=M", "D=M", "@R13", "A=M", "M=D",
+    ];
+    return { lines, consumed: 6 };
+  }
+
+  /** Lines that leave D = value of `push <seg> <idx>` for any segment. */
+  function loadSegValue(seg: string, idx: number, modName: string): string[] {
+    if (seg in SEG_BASE) {
+      return [`@${SEG_BASE[seg]}`, "D=M", `@${idx}`, "A=D+A", "D=M"];
+    }
+    if (seg === "temp") return [`@${5 + idx}`, "D=M"];
+    if (seg === "pointer") return [`@${idx === 0 ? "THIS" : "THAT"}`, "D=M"];
+    return [`@${modName}.${idx}`, "D=M"];
+  }
+
+  /**
+   * Recognize `push A i; push B j; add; pop pointer 1; push that 0`
+   * (variable-index array read) and load the value directly.
+   */
+  function tryOptArrayRead(
+    cmds: VmCommand[],
+    i: number,
+    modName: string,
+  ): { lines: string[]; consumed: number } | null {
+    const c0 = cmds[i], c1 = cmds[i + 1], c2 = cmds[i + 2], c3 = cmds[i + 3], c4 = cmds[i + 4];
+    if (
+      c0 === undefined || c1 === undefined || c2 === undefined || c3 === undefined || c4 === undefined ||
+      c0.type !== "push" || c0.arg1 === undefined || c0.arg1 === "constant" ||
+      c1.type !== "push" || c1.arg1 === undefined || c1.arg1 === "constant" ||
+      c2.type !== "add" ||
+      c3.type !== "pop" || c3.arg1 !== "pointer" || c3.arg2 !== 1 ||
+      c4.type !== "push" || c4.arg1 !== "that" || c4.arg2 !== 0
+    ) {
+      return null;
+    }
+    const lines = [
+      ...loadSegValue(c0.arg1, c0.arg2!, modName),
+      "@R13", "M=D",
+      ...loadSegValue(c1.arg1, c1.arg2!, modName),
+      "@R13", "D=D+M", "A=D", "D=M",
+      "@SP", "M=M+1", "A=M-1", "M=D",
+    ];
+    return { lines, consumed: 5 };
+  }
+
   function emitPush(cmd: VmCommand, modName: string): void {
     const seg = cmd.arg1!;
     const idx = cmd.arg2!;
@@ -207,7 +312,12 @@ export function translateVm(commands: VmCommand[], opts: TranslateOptions): stri
       if (idx > 0x7fff) {
         throw new Error(`constant too large at line ${cmd.line}: ${idx}`);
       }
-      emit(`@${idx}`, "D=A", "@SP", "M=M+1", "A=M-1", "M=D");
+      if (idx === 0 || idx === 1) {
+        // comp "0"/"1" short form
+        emit("@SP", "M=M+1", "A=M-1", `M=${idx}`);
+      } else {
+        emit(`@${idx}`, "D=A", "@SP", "M=M+1", "A=M-1", "M=D");
+      }
     } else if (seg in SEG_BASE) {
       emit(
         `@${SEG_BASE[seg]}`, "D=M", `@${idx}`, "A=D+A", "D=M",

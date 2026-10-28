@@ -8,7 +8,7 @@
  */
 
 import { parseJackUnits } from "../jack/parser";
-import { ClassDecl } from "../jack/parser";
+import { ClassDecl, Type } from "../jack/parser";
 import { compileClass } from "../jack/codegen";
 
 export interface CompileProgramResult {
@@ -28,21 +28,25 @@ export function compileProgram(sources: Array<{ name: string; src: string }>): C
   }
   if (errors.length > 0) return { vms: [], errors };
 
-  // phase 1: collect subroutine kinds and field counts across all classes
+  // phase 1: collect subroutine kinds, return types and field counts
   const subroutineKinds = new Map<string, "method" | "function" | "constructor">();
+  const subroutineRets = new Map<string, Type>();
   const classFields = new Map<string, number>();
   for (const cls of classes) {
     let n = 0;
     for (const dec of cls.classVars) if (dec.kind === "field") n += dec.names.length;
     classFields.set(cls.name, n);
-    for (const sub of cls.subroutines) subroutineKinds.set(sub.name, sub.kind);
+    for (const sub of cls.subroutines) {
+      subroutineKinds.set(sub.name, sub.kind);
+      subroutineRets.set(sub.name, sub.retType);
+    }
   }
   const knownClasses = new Set(classes.map((c) => c.name));
 
   // phase 2: emit
   const vms: Array<{ className: string; vm: string }> = [];
   for (const cls of classes) {
-    const res = compileClass(cls, { subroutineKinds, classFields });
+    const res = compileClass(cls, { subroutineKinds, classFields, subroutineRets });
     for (const e of res.errors) errors.push({ line: e.line, msg: `${cls.name}.jack: ${e.msg}` });
     vms.push({ className: cls.name, vm: res.vm });
   }

@@ -19,9 +19,4 @@ class Sys {
         return;
     }
 
-    function void error(int code) {
-        do Memory.dbgSet(7, code); // debug cell 0x3F07
-        do Sys.halt();
-        return;
-    }
 }

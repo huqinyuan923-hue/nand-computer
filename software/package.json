@@ -6,11 +6,11 @@
   "license": "MIT",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "tsc -p tsconfig.json && node --test dist/test/",
-    "hackasm": "node dist/cli/hackasm.js",
-    "hackrun": "node dist/cli/hackrun.js",
-    "vmc": "node dist/cli/vmc.js",
-    "jackc": "node dist/cli/jackc.js",
+    "test": "tsc -p tsconfig.json && node --test \"dist/test/*.test.js\"",
+    "hackasm": "node dist/src/cli/hackasm.js",
+    "hackrun": "node dist/src/cli/hackrun.js",
+    "vmc": "node dist/src/cli/vmc.js",
+    "jackc": "node dist/src/cli/jackc.js",
     "build:tetris": "node tools/build-tetris.mjs",
     "build:demo": "tsc -p tsconfig.demo.json"
   },

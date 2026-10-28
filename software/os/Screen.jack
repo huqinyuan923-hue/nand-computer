@@ -64,10 +64,6 @@ class Screen {
         return;
     }
 
-    function int getColor() {
-        return color;
-    }
-
     /** word offset within a row for pixel x (requires init). */
     function int wordOf(int x) {
         return xw[x];
@@ -109,7 +105,7 @@ class Screen {
     }
 
     /** Horizontal run fill for one row: same-word and cross-word cases. */
-    function void drawRow(int x1, int x2, int y) {
+    function void drawRow(int base, int x1, int x2) {
         var Array p;
         var int w1;
         var int w2;
@@ -118,9 +114,6 @@ class Screen {
         var int inner;
         var int word;
         var int w;
-        if ((y < 0) | (y > 255)) {
-            return;
-        }
         if (x1 < 0) { let x1 = 0; }
         if (x2 > 511) { let x2 = 511; }
         if (x1 > x2) {
@@ -131,7 +124,7 @@ class Screen {
         let m1 = maskL[15 - xm[x1]];
         let m2 = maskR[xm[x2]];
         let inner = m1 & m2; // bits strictly inside [x1..x2]
-        let p = 16384 + ((y * 32) + w1);
+        let p = base + w1;
         if (w1 = w2) {
             let word = p[0];
             if (color = 1) {
@@ -149,18 +142,19 @@ class Screen {
             let p[0] = word & (~(m1));
         }
         // middle words (full)
+        let p = base + w1 + 1;
         let w = w1 + 1;
         while (w < w2) {
-            let p = 16384 + ((y * 32) + w);
             if (color = 1) {
                 let p[0] = -1;
             } else {
                 let p[0] = 0;
             }
+            let p = p + 1;
             let w = w + 1;
         }
         // last word: bits from the left edge to x2
-        let p = 16384 + ((y * 32) + w2);
+        let p = base + w2;
         let word = p[0];
         if (color = 1) {
             let p[0] = word | m2;
@@ -173,6 +167,7 @@ class Screen {
     function void drawRectangle(int x1, int y1, int x2, int y2) {
         var int y;
         var int t;
+        var int base;
         if (x1 > x2) {
             let t = x1;
             let x1 = x2;
@@ -183,9 +178,11 @@ class Screen {
             let y1 = y2;
             let y2 = t;
         }
+        let base = 16384 + (y1 * 32);
         let y = y1;
         while (~(y2 < y)) {
-            do drawRow(x1, x2, y);
+            do drawRow(base, x1, x2);
+            let base = base + 32;
             let y = y + 1;
         }
         return;

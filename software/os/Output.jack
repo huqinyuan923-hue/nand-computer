@@ -1,25 +1,15 @@
 /**
  * Output: text on an 8x8 character grid (64 columns x 32 rows).
- * printChar renders glyphs in white with a black cell background by direct
- * word writes (8 word writes per char, no per-pixel calls).
+ * printChar renders glyphs by direct screen-word writes (one byte per row).
  * Cursor wraps at the right edge; at the bottom it clamps (no scrolling).
+ * (Lean ROM build: printChar/printString/printInt/moveCursor + getters.)
  */
 class Output {
     static int curX;          // 0..63
     static int curY;          // 0..31
-    static Array bmask;       // bmask[b] = 0x80 >> b
     static String intStr;     // scratch for printInt (allocated once)
 
     function void init() {
-        let bmask = Array.new(8);
-        let bmask[7] = 1;
-        let bmask[6] = 2;
-        let bmask[5] = 4;
-        let bmask[4] = 8;
-        let bmask[3] = 16;
-        let bmask[2] = 32;
-        let bmask[1] = 64;
-        let bmask[0] = 128;
         do OutputFont.init();
         let intStr = String.new(7);
         let curX = 0;
@@ -29,10 +19,18 @@ class Output {
     }
 
     function void moveCursor(int i, int j) {
-        if (i < 0) { let i = 0; }
-        if (i > 63) { let i = 63; }
-        if (j < 0) { let j = 0; }
-        if (j > 31) { let j = 31; }
+        if (i < 0) {
+            let i = 0;
+        }
+        if (~(i < 64)) {
+            let i = 63;
+        }
+        if (j < 0) {
+            let j = 0;
+        }
+        if (~(j < 32)) {
+            let j = 31;
+        }
         let curX = i;
         let curY = j;
         return;
@@ -47,46 +45,65 @@ class Output {
     }
 
     /**
-     * Glyph index for an ASCII code. Table order: space ! - . : 0-9 A-Z.
-     * Lowercase -> uppercase; anything else -> blank (space glyph).
+     * Glyph index for an ASCII code. Table order: space - 0-9 A C E G I L M O R S T V
+     * (24 glyphs). Lowercase -> uppercase; anything else -> blank (space glyph).
      */
     function int glyphOf(int c) {
-        if ((c < 32) | (c > 126)) {
-            return 0;
-        }
         if (c > 96) {
             if (c < 123) {
                 let c = c - 32; // lowercase -> uppercase
             }
         }
-        if (c = 33) {
-            return 1;
-        }
-        if (c = 45) {
-            return 2;
-        }
-        if (c = 46) {
-            return 3;
-        }
-        if (c = 58) {
-            return 4;
+        if ((c < 32) | (c > 126)) {
+            return 0;
         }
         if ((c > 47) & (c < 58)) {
-            return (c - 48) + 5;
+            return (c - 48) + 1;
         }
-        if ((c > 64) & (c < 91)) {
-            return (c - 65) + 15;
+        if (c = 65) {
+            return 11;
+        }
+        if (c = 67) {
+            return 12;
+        }
+        if (c = 69) {
+            return 13;
+        }
+        if (c = 71) {
+            return 14;
+        }
+        if (c = 73) {
+            return 15;
+        }
+        if (c = 76) {
+            return 16;
+        }
+        if (c = 77) {
+            return 17;
+        }
+        if (c = 79) {
+            return 18;
+        }
+        if (c = 82) {
+            return 19;
+        }
+        if (c = 83) {
+            return 20;
+        }
+        if (c = 84) {
+            return 21;
+        }
+        if (c = 86) {
+            return 22;
         }
         return 0; // blank for all other characters
     }
 
     /**
-     * Draw glyph g at char cell (cx, cy). One cell = 8px, byte-aligned within a
-     * screen word: even column -> high byte, odd column -> low byte.
+     * Draw glyph g at char cell (cx, cy). One cell = 8px; a glyph row is one
+     * byte: high byte of the screen word for even columns, low for odd.
      */
     function void drawGlyph(int g, int cx, int cy) {
-        var int px;
-        var int wordAddr;
         var int rowBase;
         var int p;
         var int ci;
@@ -94,13 +111,11 @@ class Output {
         var int rowA;
         var int rowB;
         var int r;
-        var int b;
         var int bytePat;
         var int old;
-        var int shiftHi; // 1 if high byte (even column)
-        let px = cx * 8;
-        let shiftHi = 1 - Screen.bitOf(px); // 0 for even px (high byte), 8 for odd
-        let rowBase = 16384 + (cy * 32) + Screen.wordOf(px);
+        var int hi; // 1 if even column (high byte)
+        let hi = Screen.bitOf(cx * 8); // 0 = even column (high byte)
+        let rowBase = 16384 + (cy * 256) + Screen.wordOf(cx * 8);
         let ci = 0;
         while (ci < 4) {
             let cell = OutputFont.get(g, ci);
@@ -108,20 +123,21 @@ class Output {
             let rowB = cell - (rowA * 256);
             // rows 2*ci and 2*ci+1: one screen row = 32 words further down
             let r = (ci + ci) * 32;
-            let p = rowBase + r;
-            let old = Memory.peek(p);
-            if (shiftHi = 1) {
+            if (hi = 0) {
                 let bytePat = Math.multiply(rowA, 256);
+                let p = rowBase + r;
+                let old = Memory.peek(p);
                 do Memory.poke(p, (old & 255) | bytePat);
-            } else {
-                do Memory.poke(p, (old & -256) | rowA);
-            }
-            let p = rowBase + r + 32;
-            let old = Memory.peek(p);
-            if (shiftHi = 1) {
                 let bytePat = Math.multiply(rowB, 256);
+                let p = p + 32;
+                let old = Memory.peek(p);
                 do Memory.poke(p, (old & 255) | bytePat);
             } else {
+                let p = rowBase + r;
+                let old = Memory.peek(p);
+                do Memory.poke(p, (old & -256) | rowA);
+                let p = p + 32;
+                let old = Memory.peek(p);
                 do Memory.poke(p, (old & -256) | rowB);
             }
             let ci = ci + 1;
@@ -130,12 +146,12 @@ class Output {
     }
 
     function void printChar(int c) {
-        do drawGlyph(Output.glyphOf(c), curX, curY);
+        do drawGlyph(glyphOf(c), curX, curY);
         let curX = curX + 1;
-        if (curX = 64) {
+        if (~(curX < 64)) {
             let curX = 0;
             let curY = curY + 1;
-            if (curY = 32) {
+            if (~(curY < 32)) {
                 let curY = 31; // clamp: no scrolling
             }
         }
@@ -160,20 +176,4 @@ class Output {
         return;
     }
 
-    function void println() {
-        do printChar(13); // reuses cursor wrap logic via a control char -> glyphOf maps to blank
-        let curX = 0;
-        let curY = curY + 1;
-        if (curY = 32) {
-            let curY = 31;
-        }
-        return;
-    }
-
-    function void clear() {
-        do Screen.clearScreen();
-        let curX = 0;
-        let curY = 0;
-        return;
-    }
 }

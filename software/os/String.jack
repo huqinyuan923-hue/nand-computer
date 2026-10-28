@@ -1,6 +1,7 @@
 /**
  * String: fixed-capacity string of 16-bit chars stored in an Array.
- * Spec constants: Backspace=8, Enter=13 (per SPEC.md keyboard mapping).
+ * (Lean ROM build: new/appendChar/charAt/length/setInt/dispose only —
+ * these are what the compiler and Output need.)
  */
 class String {
     field int maxLength;
@@ -27,10 +28,6 @@ class String {
         return len;
     }
 
-    method int maxLength() {
-        return maxLength;
-    }
-
     method int charAt(int i) {
         var Array p;
         if ((i < 0) | (~(i < len))) {
@@ -40,24 +37,14 @@ class String {
         return p[0];
     }
 
-    method void setCharAt(int i, int c) {
-        var Array p;
-        if ((i < 0) | (~(i < maxLength))) {
-            return;
-        }
-        let p = data + i;
-        let p[0] = c;
-        if (~(i < len)) {
-            let len = i + 1;
-        }
-        return;
-    }
-
     method String appendChar(int c) {
+        var Array p;
         if (~(len < maxLength)) {
-            return this; // full: ignore (documented; compiler literals never overflow)
+            return this; // full: ignore (compiler literals never overflow)
         }
-        do setCharAt(len, c);
+        let p = data + len;
+        let p[0] = c;
+        let len = len + 1;
         return this;
     }
 
@@ -68,33 +55,12 @@ class String {
         return;
     }
 
-    method int intValue() {
-        var int i;
-        var int n;
-        var int c;
-        var int neg;
-        let i = 0;
-        let n = 0;
-        let neg = 0;
-        if ((len > 0) & ((charAt(0) = 45) | (charAt(0) = 43))) { // '-' or '+'
-            if (charAt(0) = 45) {
-                let neg = 1;
-            }
-            let i = 1;
-        }
-        while (i < len) {
-            let c = charAt(i);
-            if ((c < 48) | (c > 57)) {
-                let i = len; // stop at first non-digit
-            } else {
-                let n = (n * 10) + (c - 48);
-                let i = i + 1;
-            }
-        }
-        if (neg = 1) {
-            return -n;
-        }
-        return n;
+    function int backSpace() {
+        return 8; // SPEC keyboard mapping
+    }
+
+    function int newLine() {
+        return 13; // SPEC keyboard mapping (Enter)
     }
 
     method void setInt(int n) {
@@ -104,6 +70,7 @@ class String {
         var int neg;
         var Array digits;
         var int nd;
+        var Array p;
         let digits = Array.new(6); // max 5 digits + sign
         let nd = 0;
         let neg = 0;
@@ -129,29 +96,18 @@ class String {
             let nd = nd + 1;
             let n = q;
         }
-        let i = 0;
         if (neg = 1) {
-            do setCharAt(i, 45);
-            let i = i + 1;
+            let p = data + len;
+            let p[0] = 45; // '-'
+            let len = len + 1;
         }
         while (nd > 0) {
             let nd = nd - 1;
-            do setCharAt(i, digits[nd]);
-            let i = i + 1;
+            let p = data + len;
+            let p[0] = digits[nd];
+            let len = len + 1;
         }
         do digits.dispose();
         return;
-    }
-
-    function int backSpace() {
-        return 8;
-    }
-
-    function int doubleQuote() {
-        return 34;
-    }
-
-    function int newLine() {
-        return 13;
     }
 }

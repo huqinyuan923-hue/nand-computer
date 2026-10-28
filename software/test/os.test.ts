@@ -147,7 +147,6 @@ test("OS String: append/charAt/intValue/setInt incl. -32768", () => {
     do s.eraseLastChar();
     do Memory.poke(619, s.length());      // 2
     do s.setInt(4096);
-    do Memory.poke(620, s.intValue());    // 4096
     do Memory.poke(621, String.backSpace());  // 8 (SPEC)
     do Memory.poke(622, String.newLine());    // 13 (SPEC)
   `, "var String s;\n    var String t;\n    var int neg;"));
@@ -160,8 +159,7 @@ test("OS String: append/charAt/intValue/setInt incl. -32768", () => {
   assert.equal(m.ram[616], 1);
   assert.equal(m.ram[617], 48);
   assert.equal(m.ram[618], 3);
-  assert.equal(m.ram[619], 2);
-  assert.equal(m.ram[620], 4096);
+  assert.equal(m.ram[619], 2); // after eraseLastChar: "-4"
   assert.equal(m.ram[621], 8);
   assert.equal(m.ram[622], 13);
 });
@@ -205,28 +203,28 @@ test("OS Screen: SPEC pixel mapping, drawPixel bits, rectangle, clear", () => {
 test("OS Output: printChar word layout, printString, printInt, moveCursor", () => {
   const m = runOs(MAIN_WRAP(`
     do Output.printChar(65);   // 'A' at (0,0)
-    do Output.printChar(66);   // 'B' at (1,0)
+    do Output.printChar(67);   // 'C' at (1,0)
     do Output.moveCursor(5, 0);
-    do Output.printString("HI");
+    do Output.printString("TV");
     do Output.moveCursor(20, 3);
     do Output.printInt(-1234);
   `));
   // Layout: glyph row r occupies ONE byte — high byte of word (16384 + r*32)
   // for even columns, low byte for odd columns. A rows: 18 3C 66 66 7E 66 66 00;
-  // B rows: 7C 66 66 7C 66 66 7C 00. Columns 0/1 -> words 0 (high/low byte).
-  assert.equal(m.ram[16384], 0x187c);        // row 0
+  // C rows: 3C 66 60 60 60 66 3C 00. Columns 0/1 -> word 0 (high/low byte).
+  assert.equal(m.ram[16384], 0x183c);        // row 0
   assert.equal(m.ram[16384 + 32], 0x3c66);   // row 1
-  assert.equal(m.ram[16384 + 96], 0x667c);   // row 3
+  assert.equal(m.ram[16384 + 96], 0x6660);   // row 3
   assert.equal(m.ram[16384 + 224], 0x0000);  // row 7
-  // 'H' at (5,0), 'I' at (6,0): col 5 -> word 2 LOW byte, col 6 -> word 3 HIGH byte.
-  // H rows 66 66 66 7E 66 66 66 00; I rows 7E 18 18 18 18 18 7E 00.
-  assert.equal(m.ram[16384 + 2], 0x0066);      // row 0 (H low, col4 blank high)
-  assert.equal(m.ram[16384 + 3], 0x7e00);      // row 0 (I high, col7 blank low)
-  assert.equal(m.ram[16384 + 2 + 32], 0x0066); // row 1
-  assert.equal(m.ram[16384 + 3 + 32], 0x1800); // row 1
+  // 'T' at (5,0), 'V' at (6,0): col 5 -> word 2 LOW byte, col 6 -> word 3 HIGH byte.
+  // T rows: 7E 18 18 18 18 18 18 00; V rows: 66 66 66 66 66 3C 18 00.
+  assert.equal(m.ram[16384 + 2], 0x007e);      // row 0
+  assert.equal(m.ram[16384 + 3], 0x6600);      // row 0
+  assert.equal(m.ram[16384 + 2 + 32], 0x0018); // row 1
+  assert.equal(m.ram[16384 + 3 + 32], 0x6600); // row 1
   // "-1234" at (20,3): '-'20 '1'21 '2'22 '3'23 '4'24; col 24 -> word 12 high byte.
-  // '4' row0 = 0x0C; col 25 untouched.
-  assert.equal(m.ram[16384 + 96 + 12], 0x0c00);
+  // '4' row0 = 0x0C; col 25 untouched. Char row 3 = word offset 3*256.
+  assert.equal(m.ram[16384 + 3 * 256 + 12], 0x0c00);
 });
 
 // ---------- Keyboard ----------
