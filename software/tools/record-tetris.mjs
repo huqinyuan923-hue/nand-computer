@@ -216,6 +216,31 @@ const golden = {
 };
 writeFileSync(join(root, "golden/tetris/checkpoints.json"), JSON.stringify(golden, null, 2) + "\n");
 
+// Address map for demo/ui.ts: sceneDirty + HUD statics from the symbol table,
+// debug cells fixed by Memory.dbgSet (16128 + cell index).
+const demoMeta = {
+  program: "golden/tetris/tetris.hack",
+  input: "golden/tetris/input.txt",
+  statics: { sceneDirty: ADDR.sceneDirty },
+  debug: { frame: 16128, x: 16129, y: 16130, rot: 16131, type: 16132, lines: 16133, score: 16134 },
+};
+writeFileSync(join(root, "golden/tetris/demo-meta.json"), JSON.stringify(demoMeta, null, 2) + "\n");
+
+// Cross-track spec for the hardware track's gate-level integration driver
+// (run from hardware/: node --no-warnings tools/run-integration.ts --spec ../software/golden/tetris/integration-spec.json).
+const integrationSpec = {
+  name: "software-tetris-golden",
+  comment: "软件轨 Tetris 黄金脚本（hackrun 录制，见 golden/tetris/checkpoints.json）：门级 Computer 与 oracle 逐周期对拍 + 7 个检查点屏幕哈希。",
+  hack: "software/golden/tetris/tetris.hack",
+  script: scriptText,
+  cycles: checkpoints[checkpoints.length - 1].cycle + 1,
+  checkpoints: checkpoints.map((c) => c.cycle),
+  expect: {
+    checkpoints: Object.fromEntries(checkpoints.map((c) => [String(c.cycle), c.screenSha256])),
+  },
+};
+writeFileSync(join(root, "golden/tetris/integration-spec.json"), JSON.stringify(integrationSpec, null, 2) + "\n");
+
 // ---- replay verification ----
 const replay = new HackMachine(words);
 const res = replay.run({ until: m.cycle - 1, input, checkpoints: checkpoints.map((c) => c.cycle) });

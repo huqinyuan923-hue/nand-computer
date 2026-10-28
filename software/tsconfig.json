@@ -14,5 +14,6 @@
     "forceConsistentCasingInFileNames": true,
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "tools/**/*.ts"]
+  "include": ["src/**/*.ts", "test/**/*.ts", "tools/**/*.ts"],
+  "exclude": ["src/browser/ui.ts"]
 }

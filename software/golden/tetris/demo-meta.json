@@ -1,0 +1,16 @@
+{
+  "program": "golden/tetris/tetris.hack",
+  "input": "golden/tetris/input.txt",
+  "statics": {
+    "sceneDirty": 43
+  },
+  "debug": {
+    "frame": 16128,
+    "x": 16129,
+    "y": 16130,
+    "rot": 16131,
+    "type": 16132,
+    "lines": 16133,
+    "score": 16134
+  }
+}

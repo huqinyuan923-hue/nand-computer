@@ -4,6 +4,10 @@ dist/
 build/
 hackrun-out/
 demo/engine.js
+demo/ui.js
+demo/tetris.hack
+demo/input.txt
+demo/meta.json
 *.log
 package-lock.json
 bin/

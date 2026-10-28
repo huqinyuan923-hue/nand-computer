@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hack Tetris — 行为级模拟器</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230b0d12'/%3E%3Crect x='2' y='2' width='6' height='6' fill='%23e6e9f0'/%3E%3Crect x='8' y='8' width='6' height='6' fill='%237dd3fc'/%3E%3C/svg%3E">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0b0d12;
+    --panel: #141821;
+    --line: #232a38;
+    --ink: #e6e9f0;
+    --dim: #8b94a7;
+    --accent: #7dd3fc;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: radial-gradient(1200px 700px at 50% -10%, #151b28 0%, var(--bg) 55%);
+    color: var(--ink);
+    font: 15px/1.5 ui-sans-serif, system-ui, "Segoe UI", "Microsoft YaHei", sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  main {
+    width: min(1080px, 100%);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 20px;
+    align-items: start;
+  }
+  header { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  h1 { font-size: 20px; font-weight: 650; margin: 0; letter-spacing: .01em; }
+  header p { margin: 0; color: var(--dim); font-size: 13px; }
+  .screen-frame {
+    background: #05070b;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px;
+    box-shadow: 0 18px 60px rgb(0 0 0 / .45), inset 0 0 0 1px rgb(255 255 255 / .02);
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    image-rendering: pixelated;
+    border-radius: 4px;
+    background: #000;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .hud { font: 600 18px/1.3 ui-monospace, "Cascadia Mono", Consolas, monospace; letter-spacing: .04em; }
+  .hud .accent { color: var(--accent); }
+  .status { color: var(--dim); font: 12px/1.4 ui-monospace, "Cascadia Mono", Consolas, monospace; min-height: 2.8em; }
+  .controls { display: flex; flex-direction: column; gap: 6px; }
+  .controls label { display: flex; justify-content: space-between; color: var(--dim); font-size: 12px; }
+  input[type="range"] { width: 100%; accent-color: var(--accent); }
+  .buttons { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  button {
+    appearance: none;
+    border: 1px solid var(--line);
+    background: #1b2130;
+    color: var(--ink);
+    border-radius: 8px;
+    padding: 8px 6px;
+    font: 600 13px/1 ui-sans-serif, system-ui, sans-serif;
+    cursor: pointer;
+  }
+  button:hover { border-color: #3a465c; background: #222a3c; }
+  button:active { transform: translateY(1px); }
+  #replay { border-color: #2f5d75; background: #12303f; color: var(--accent); }
+  .keys { color: var(--dim); font-size: 12px; border-top: 1px solid var(--line); padding-top: 12px; }
+  .keys kbd {
+    display: inline-block;
+    min-width: 1.6em;
+    text-align: center;
+    padding: 1px 5px;
+    border: 1px solid var(--line);
+    border-bottom-width: 2px;
+    border-radius: 5px;
+    background: #10141d;
+    color: var(--ink);
+    font: 11px/1.5 ui-monospace, Consolas, monospace;
+  }
+  .note { grid-column: 1 / -1; color: var(--dim); font-size: 12px; margin: 0; }
+  .note code { color: #b9c2d4; }
+  @media (max-width: 860px) {
+    main { grid-template-columns: 1fr; }
+    body { align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Hack Tetris</h1>
+    <p>软件轨 ROM · 逐指令行为级模拟（1 条指令 = 1 个时钟周期）</p>
+  </header>
+
+  <section class="screen-frame">
+    <canvas id="screen" width="512" height="256"></canvas>
+  </section>
+
+  <aside class="panel">
+    <div class="hud"><span class="accent">■</span> <span id="score">LINES 0 · SCORE 0</span></div>
+    <div class="status" id="status">loading…</div>
+
+    <div class="controls">
+      <label for="speed"><span>模拟速度</span><span id="speed-label"></span></label>
+      <input id="speed" type="range" min="10000" max="2000000" step="5000" value="50000">
+    </div>
+
+    <div class="buttons">
+      <button id="restart" type="button">重启</button>
+      <button id="replay" type="button" title="从头回放 golden/tetris/input.txt">回放脚本</button>
+      <button id="pause" type="button">暂停</button>
+    </div>
+
+    <div class="keys">
+      方向键操作：<kbd>←</kbd> <kbd>→</kbd> 移动，<kbd>↑</kbd> 旋转，<kbd>↓</kbd> 软降。<br>
+      ROM 直接跑在内存镜像上，重力由固定周期忙等控制；速度滑杆是模拟时钟倍率，不是游戏难度。
+    </div>
+  </aside>
+
+  <p class="note">
+    页面加载 <code>demo/tetris.hack</code>（与 <code>golden/tetris/</code> 同一镜像）与黄金输入脚本；
+    「回放脚本」从零复现 <code>input.txt</code>，画面停在游戏自己的整帧重绘边界上。
+  </p>
+</main>
+<script type="module" src="./ui.js"></script>
+</body>
+</html>
