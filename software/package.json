@@ -12,7 +12,8 @@
     "vmc": "node dist/src/cli/vmc.js",
     "jackc": "node dist/src/cli/jackc.js",
     "build:tetris": "node tools/build-tetris.mjs",
-    "build:demo": "tsc -p tsconfig.demo.json"
+    "build:demo": "tsc -p tsconfig.demo.json",
+    "record:tetris": "node tools/record-tetris.mjs"
   },
   "engines": {
     "node": ">=18"

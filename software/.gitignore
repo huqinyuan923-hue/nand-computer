@@ -6,3 +6,4 @@ hackrun-out/
 demo/engine.js
 *.log
 package-lock.json
+bin/

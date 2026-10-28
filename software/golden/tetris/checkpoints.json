@@ -1,0 +1,91 @@
+{
+  "program": "golden/tetris/tetris.hack",
+  "input": "golden/tetris/input.txt",
+  "romWords": 32540,
+  "romSha256": "d84e44589e7b33e2c309e7999121b4a2e8ff65ede4ea468aeea0057015dc99d5",
+  "totalCycles": 174971745,
+  "final": {
+    "lines": 1,
+    "score": 100,
+    "screenSha256": "eb9348b83bce2d4857af1ad0e7b72af2435b33fb9c6a6d41f716b4d222f23b34"
+  },
+  "checkpoints": [
+    {
+      "cycle": 5651279,
+      "label": "boot: first piece spawned",
+      "screenSha256": "376f24bd52ab73070573d1f8c0862649454e3c111f0239db105ade32427f0b77",
+      "lines": 0,
+      "score": 0,
+      "curType": 1,
+      "curX": 3,
+      "curY": 0,
+      "curRot": 0
+    },
+    {
+      "cycle": 40005851,
+      "label": "piece 1 O: locked @x=7 r=0; lines=0 score=0",
+      "screenSha256": "f1ecc160047beb2d4374eb1b708ef69416769092d6e207b27bbe56c0dbb5244b",
+      "lines": 0,
+      "score": 0,
+      "curType": 2,
+      "curX": 3,
+      "curY": 0,
+      "curRot": 0
+    },
+    {
+      "cycle": 69822866,
+      "label": "piece 2 T: locked @x=2 r=0; lines=0 score=0",
+      "screenSha256": "94378e5f0c090b57e962f42acb81c4d17aa670bfe3eb03c4cb68e8d5b67de76f",
+      "lines": 0,
+      "score": 0,
+      "curType": 3,
+      "curX": 3,
+      "curY": 0,
+      "curRot": 0
+    },
+    {
+      "cycle": 103967519,
+      "label": "piece 3 S: locked @x=0 r=0; lines=0 score=0",
+      "screenSha256": "02b6860cc521af8a5dff15f35673d0fa7a1926b2f5937418b6cb15f552bd9b98",
+      "lines": 0,
+      "score": 0,
+      "curType": 4,
+      "curX": 3,
+      "curY": 0,
+      "curRot": 0
+    },
+    {
+      "cycle": 136197350,
+      "label": "piece 4 Z: locked @x=4 r=0; lines=0 score=0",
+      "screenSha256": "7ca9ca2202e5f065f9cfa48fa28102c46f456ac52ba78706726632e897fa8910",
+      "lines": 0,
+      "score": 0,
+      "curType": 5,
+      "curX": 3,
+      "curY": 0,
+      "curRot": 0
+    },
+    {
+      "cycle": 137821592,
+      "label": "piece 5 J: rotated to 1 (mid-air)",
+      "screenSha256": "21d471203f56ee6b2a5e2168641d0898e9a93cb208bb548c52e699b9e194e866",
+      "lines": 0,
+      "score": 0,
+      "curType": 5,
+      "curX": 3,
+      "curY": 0,
+      "curRot": 1
+    },
+    {
+      "cycle": 174971744,
+      "label": "piece 5 J: locked @x=6 r=1; lines=1 score=100",
+      "screenSha256": "eb9348b83bce2d4857af1ad0e7b72af2435b33fb9c6a6d41f716b4d222f23b34",
+      "lines": 1,
+      "score": 100,
+      "curType": 6,
+      "curX": 3,
+      "curY": 0,
+      "curRot": 0
+    }
+  ]
+}

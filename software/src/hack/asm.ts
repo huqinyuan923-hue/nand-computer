@@ -15,6 +15,7 @@ export interface AsmError {
 export interface AssembleResult {
   words: Uint16Array;
   errors: AsmError[];
+  symbols: Record<string, number>;
 }
 
 const PREDEFINED: Record<string, number> = {
@@ -140,7 +141,7 @@ export function assemble(src: string): AssembleResult {
     words.push(w);
   }
 
-  return { words: new Uint16Array(words), errors };
+  return { words: new Uint16Array(words), errors, symbols };
 }
 
 function encodeC(line: string): number | string {

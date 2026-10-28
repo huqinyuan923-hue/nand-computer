@@ -1,0 +1,7 @@
+/** Main: entry point called by Sys.init. */
+class Main {
+    function void main() {
+        do Tetris.run();
+        return;
+    }
+}

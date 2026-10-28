@@ -1,0 +1,404 @@
+/**
+ * Tetris (Jack) on the self-built toolchain.
+ * Board 10x20, 12px cells at pixel origin (16,8). 7 pieces x 4 SRS rotations
+ * (states 1..3 computed from the spawn state; O is rotation-invariant).
+ * Rendering: full scene redraw (board + current piece) on state change —
+ * deterministic and ROM-lean.
+ * Determinism contract: gravity timing = fixed-cycle busy-wait loops with
+ * compile-time constants (no runtime calibration), so the cycle timeline is
+ * identical on the behavioral interpreter and the gate-level CPU.
+ * Debug instrumentation: cells 0..6 at 0x3F00 (frame, piece x/y/rot/type,
+ * lines, score) - recording harness only.
+ */
+class Tetris {
+    static Array board;       // 200 cells, 0 = empty, 1..7 = piece id
+    static Array rot;         // rot[(t*4 + r)*8 + k*2] = dx, +1 = dy
+    static int curType;
+    static int curRot;
+    static int curX;
+    static int curY;
+    static int score;
+    static int lines;
+    static int seed;          // deterministic LCG state
+    static int gameOver;
+    static int prevKey;
+    static int repeatCnt;
+    static int gravCnt;
+    static int frameCnt;
+    static int sceneDirty;
+
+    static int GRAV_SUB;      // subframes per gravity step (normal)
+    static int SOFT_SUB;      // subframes per gravity step (soft drop held)
+    static int SUB_TICKS;     // busy-wait iterations per subframe (hardcoded)
+
+    function void init() {
+        var int t;
+        var int r;
+        var int k;
+        var int n;
+        var int dx;
+        var int dy;
+        var int src;
+        var int dst;
+        let board = Array.new(200);
+        let rot = Array.new(224); // (t*4+3)*8+7 max index = 223
+        // spawn states (SRS): I, O, T, S, Z, J, L  (written into rot[t][0])
+        do Tetris.setCells(0, 0, 1, 1, 1, 2, 1, 3, 1);
+        do Tetris.setCells(1, 1, 0, 2, 0, 1, 1, 2, 1);
+        do Tetris.setCells(2, 1, 0, 0, 1, 1, 1, 2, 1);
+        do Tetris.setCells(3, 1, 0, 2, 0, 0, 1, 1, 1);
+        do Tetris.setCells(4, 0, 0, 1, 0, 1, 1, 2, 1);
+        do Tetris.setCells(5, 0, 0, 0, 1, 1, 1, 2, 1);
+        do Tetris.setCells(6, 2, 0, 0, 1, 1, 1, 2, 1);
+        // rotations 1..3: (x,y) -> (N-1-y, x), N=4 for I, 3 otherwise
+        let t = 0;
+        while (t < 7) {
+            if (t = 0) {
+                let n = 3;
+            } else {
+                let n = 2;
+            }
+            let r = 0;
+            while (r < 3) {
+                let k = 0;
+                while (k < 8) {
+                    let src = ((t * 4) + r) * 8;
+                    let dst = src + 8;
+                    let dx = rot[src + k];
+                    let dy = rot[src + k + 1];
+                    if (t = 1) {
+                        let rot[dst + k] = dx;
+                        let rot[dst + k + 1] = dy;
+                    } else {
+                        let rot[dst + k] = n - dy;
+                        let rot[dst + k + 1] = dx;
+                    }
+                    let k = k + 2;
+                }
+                let r = r + 1;
+            }
+            let t = t + 1;
+        }
+        // timing constants (hardcoded; never calibrated at runtime)
+        let GRAV_SUB = 8;
+        let SOFT_SUB = 1;
+        let SUB_TICKS = 750;
+        return;
+    }
+
+    /** Spawn state is rotation 0: cells live at rot[(t*4 + 0)*8]. */
+    function void setCells(int t, int x0, int y0, int x1, int y1, int x2, int y2, int x3, int y3) {
+        let rot[(t * 32)] = x0;
+        let rot[(t * 32) + 1] = y0;
+        let rot[(t * 32) + 2] = x1;
+        let rot[(t * 32) + 3] = y1;
+        let rot[(t * 32) + 4] = x2;
+        let rot[(t * 32) + 5] = y2;
+        let rot[(t * 32) + 6] = x3;
+        let rot[(t * 32) + 7] = y3;
+        return;
+    }
+
+    /** busy-wait: fixed constant iteration count, hardcoded at build time */
+    function void busy(int n) {
+        var int i;
+        let i = n;
+        while (~(i = 0)) {
+            let i = i - 1;
+        }
+        return;
+    }
+
+    function boolean canPlace(int t, int r, int x, int y) {
+        var int k;
+        var int cx;
+        var int cy;
+        var int base;
+        let base = ((t * 4) + r) * 8;
+        let k = 0;
+        while (k < 8) {
+            let cx = x + rot[base + k];
+            let cy = y + rot[base + k + 1];
+            if ((cx < 0) | (cx > 9)) {
+                return false;
+            }
+            if (cy > 19) {
+                return false;
+            }
+            if (~(board[(cy * 10) + cx] = 0)) {
+                return false;
+            }
+            let k = k + 2;
+        }
+        return true;
+    }
+
+    function void spawn() {
+        let seed = seed + 1;
+        let curType = seed - (Math.divide(seed, 7) * 7);
+        let curRot = 0;
+        let curX = 3;
+        let curY = 0;
+        if (~(Tetris.canPlace(curType, curRot, curX, curY))) {
+            let gameOver = 1;
+        }
+        return;
+    }
+
+    function void lockPiece() {
+        var int k;
+        var int cx;
+        var int cy;
+        var int base;
+        let base = ((curType * 4) + curRot) * 8;
+        let k = 0;
+        while (k < 8) {
+            let cx = curX + rot[base + k];
+            let cy = curY + rot[base + k + 1];
+            let board[(cy * 10) + cx] = curType + 1;
+            let k = k + 2;
+        }
+        return;
+    }
+
+    function void clearLines() {
+        var int r;
+        var int c;
+        var int full;
+        var int n;
+        var int rr;
+        let r = 0;
+        let n = 0;
+        while (r < 20) {
+            let full = 1;
+            let c = 0;
+            while (c < 10) {
+                if (board[(r * 10) + c] = 0) {
+                    let full = 0;
+                }
+                let c = c + 1;
+            }
+            if (~(full = 0)) {
+                let n = n + 1;
+                let rr = r;
+                while (rr > 0) {
+                    let c = 0;
+                    while (c < 10) {
+                        let board[(rr * 10) + c] = board[((rr - 1) * 10) + c];
+                        let c = c + 1;
+                    }
+                    let rr = rr - 1;
+                }
+                let c = 0;
+                while (c < 10) {
+                    let board[c] = 0;
+                    let c = c + 1;
+                }
+            }
+            let r = r + 1;
+        }
+        if (~(n = 0)) {
+            if (n = 1) {
+                let score = score + 100;
+            } else {
+                if (n = 2) {
+                    let score = score + 300;
+                } else {
+                    if (n = 3) {
+                        let score = score + 500;
+                    } else {
+                        let score = score + 800;
+                    }
+                }
+            }
+            let lines = lines + n;
+            do Tetris.drawHud();
+        }
+        return;
+    }
+
+    function void gravityStep() {
+        var Array p;
+        let frameCnt = frameCnt + 1;
+        if (~(Tetris.canPlace(curType, curRot, curX, curY + 1))) {
+            do Tetris.lockPiece();
+            do Tetris.clearLines();
+            if (~(gameOver = 1)) {
+                do Tetris.spawn();
+            }
+        } else {
+            let curY = curY + 1;
+        }
+        let sceneDirty = 1;
+        // debug instrumentation at 0x3F00..0x3F06 (recording harness)
+        let p = 16128;
+        let p[0] = frameCnt;
+        let p[1] = curX;
+        let p[2] = curY;
+        let p[3] = curRot;
+        let p[4] = curType;
+        let p[5] = lines;
+        let p[6] = score;
+        return;
+    }
+
+    function void drawCellPx(int px, int py) {
+        do Screen.setColor(1);
+        do Screen.drawRectangle(px, py, px + 10, py + 10);
+        return;
+    }
+
+    /** Full scene redraw: board background, locked cells, current piece. */
+    function void redrawScene() {
+        var int i;
+        var int cx;
+        var int cy;
+        var int px;
+        var int py;
+        var int base;
+        do Screen.setColor(0);
+        do Screen.drawRectangle(16, 8, 135, 247);
+        do Screen.setColor(1);
+        let py = 8;
+        let cy = 0;
+        while (cy < 20) {
+            let px = 16;
+            let cx = 0;
+            while (cx < 10) {
+                if (~(board[(cy * 10) + cx] = 0)) {
+                    do Tetris.drawCellPx(px, py);
+                }
+                let px = px + 12;
+                let cx = cx + 1;
+            }
+            let py = py + 12;
+            let cy = cy + 1;
+        }
+        if (~(gameOver = 1)) {
+            let base = ((curType * 4) + curRot) * 8;
+            let i = 0;
+            while (i < 8) {
+                let cx = curX + rot[base + i];
+                let cy = curY + rot[base + i + 1];
+                do Tetris.drawCellPx(16 + (cx * 12), 8 + (cy * 12));
+                let i = i + 2;
+            }
+        }
+        let sceneDirty = 0;
+        return;
+    }
+
+    function void drawHud() {
+        do Output.moveCursor(19, 4);
+        do Output.printString("SCORE");
+        do Output.moveCursor(19, 6);
+        do Output.printInt(score);
+        do Output.printChar(32);
+        do Output.printChar(32);
+        return;
+    }
+
+    function void drawFrame() {
+        do Screen.setColor(1);
+        do Screen.drawRectangle(14, 6, 137, 7);
+        do Screen.drawRectangle(14, 6, 15, 249);
+        do Screen.drawRectangle(136, 6, 137, 249);
+        do Screen.drawRectangle(14, 248, 137, 249);
+        do Output.moveCursor(19, 0);
+        do Output.printString("TETRIS");
+        do Tetris.drawHud();
+        return;
+    }
+
+    function void tryMove(int dx) {
+        if (Tetris.canPlace(curType, curRot, curX + dx, curY)) {
+            let curX = curX + dx;
+            let sceneDirty = 1;
+        }
+        return;
+    }
+
+    function void tryRotate() {
+        var int nr;
+        let nr = curRot + 1;
+        if (nr = 4) {
+            let nr = 0;
+        }
+        if (Tetris.canPlace(curType, nr, curX, curY)) {
+            let curRot = nr;
+            let sceneDirty = 1;
+        }
+        return;
+    }
+
+    /** Single dispatch: fresh press acts immediately; held keys auto-repeat. */
+    function int processInput() {
+        var int key;
+        let key = Keyboard.key();
+        if (~(key = prevKey)) {
+            let repeatCnt = 0;
+        }
+        if (~(key = 0)) {
+            let repeatCnt = repeatCnt + 1;
+            if (~(repeatCnt > 3)) {
+                if (key = 37) {
+                    do Tetris.tryMove(-1);
+                } else {
+                    if (key = 39) {
+                        do Tetris.tryMove(1);
+                    } else {
+                        if (key = 38) {
+                            do Tetris.tryRotate();
+                        }
+                    }
+                }
+            }
+        }
+        let prevKey = key;
+        return key;
+    }
+
+    function void run() {
+        var int key;
+        do Tetris.init();
+        do Screen.clearScreen();
+        do Tetris.drawFrame();
+        let gameOver = 0;
+        let prevKey = 0;
+        let repeatCnt = 0;
+        let gravCnt = 0;
+        let frameCnt = 0;
+        let seed = 7;
+        do Tetris.spawn();
+        do Tetris.redrawScene();
+        while (~(gameOver = 1)) {
+            let key = Tetris.processInput();
+            let gravCnt = gravCnt + 1;
+            if (~(key = 40)) {
+                // normal gravity every GRAV_SUB subframes
+                if (~(gravCnt < GRAV_SUB)) {
+                    let gravCnt = 0;
+                    do Tetris.gravityStep();
+                }
+            } else {
+                // soft drop held: gravity every SOFT_SUB subframes
+                if (~(gravCnt < SOFT_SUB)) {
+                    let gravCnt = 0;
+                    do Tetris.gravityStep();
+                }
+            }
+            if (~(sceneDirty = 0)) {
+                do Tetris.redrawScene();
+            }
+            do Tetris.busy(SUB_TICKS);
+        }
+        do Output.moveCursor(19, 18);
+        do Output.printString("GAME");
+        do Output.moveCursor(19, 20);
+        do Output.printString("OVER");
+        do Tetris.drawHud();
+        while (true) {
+        }
+        return;
+    }
+}
