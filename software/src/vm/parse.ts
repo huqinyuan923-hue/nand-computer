@@ -66,6 +66,10 @@ export function parseVm(src: string): { commands: VmCommand[]; errors: VmParseEr
       }
       commands.push({ type: op, arg1: seg, arg2: idx, line });
     } else if (ARITH.has(op)) {
+      if (parts.length !== 1) {
+        errors.push({ line, msg: `${op} takes no arguments` });
+        continue;
+      }
       commands.push({ type: op as VmCmdType, line });
     } else if (op === "label" || op === "goto" || op === "if-goto") {
       if (parts.length !== 2) {
@@ -80,6 +84,10 @@ export function parseVm(src: string): { commands: VmCommand[]; errors: VmParseEr
       }
       commands.push({ type: op, arg1: parts[1], arg2: parseInt(parts[2], 10), line });
     } else if (op === "return") {
+      if (parts.length !== 1) {
+        errors.push({ line, msg: "return takes no arguments" });
+        continue;
+      }
       commands.push({ type: "return", line });
     } else {
       errors.push({ line, msg: `unknown command: ${op}` });

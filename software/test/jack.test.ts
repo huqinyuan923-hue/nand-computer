@@ -319,6 +319,31 @@ class Sys {
   assert.equal(m.ram[541], 3);
 });
 
+test("do calls discard the callee's return slot (no stack leak)", () => {
+  // VM `return` always leaves one word at *ARG, so every discarded call must
+  // pop it. A leak would push SP up by 1 per call and eventually overrun the
+  // heap; park in an infinite loop and read SP there.
+  const m = runJack(`
+class Sys { function void init() { do Main.main(); return; } }
+class Main {
+    function void v() { return; }
+    function int f() { return 7; }
+    function void main() {
+        var int i;
+        let i = 0;
+        while (i < 100) {
+            do Main.v();
+            do Main.f();
+            let i = i + 1;
+        }
+        while (true) { let i = 0; }
+        return;
+    }
+}
+`, { until: 2_000_000 });
+  assert.equal(m.ram[0], 268, "SP stays at the frame base after 200 discarded calls");
+});
+
 test("tokenizer/parser errors are reported with line numbers", () => {
   const { errors } = compileProgram([{ name: "Bad.jack", src: "class 123 { }" }]);
   assert.ok(errors.length > 0);

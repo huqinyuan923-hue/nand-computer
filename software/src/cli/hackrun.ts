@@ -13,7 +13,7 @@
  * Output: JSON on stdout.
  */
 
-import { HackMachine, parseInputScript } from "../hack/machine";
+import { HackMachine, parseInputScript, screenAsciiFromRam } from "../hack/machine";
 import { parseHack } from "../hack/asm";
 
 interface Options {
@@ -60,17 +60,19 @@ async function main(): Promise<number> {
   const opts = parseArgs(process.argv.slice(2));
   const chunks: Buffer[] = [];
   for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
-  const programText = Buffer.concat(chunks).toString("utf8");
+  const programText = Buffer.concat(chunks).toString("utf8").replace(/^\uFEFF/, "");
 
   const program = parseHack(programText);
   const input = opts.script !== null
     ? parseInputScript(opts.script.trim().replace(/[;,]/g, "\n"))
     : [];
+  const wantRam = opts.dump.size > 0 || opts.ascii;
   const machine = new HackMachine(program, { input, watch: opts.watch });
   const result = machine.run({
     until: opts.until ?? undefined,
     maxCycles: opts.maxCycles,
     checkpoints: opts.checkpoints,
+    captureRam: wantRam,
   });
 
   const out: Record<string, unknown> = {
@@ -78,12 +80,17 @@ async function main(): Promise<number> {
     halted: result.halted,
     haltReason: result.haltReason,
     final: { a: result.finalA, d: result.finalD, pc: result.finalPc, sp: machine.ram[0] },
-    checkpoints: result.checkpoints.map((cp) => ({
-      ...cp,
-      ascii: opts.ascii ? machine.screenAscii() : undefined,
-      screen: opts.dump.has("screen") ? wordsToBin(machine.ram.subarray(0x4000, 0x6000)) : undefined,
-      ram: opts.dump.has("ram") ? wordsToBin(machine.ram.subarray(0, 0x4000)) : undefined,
-    })),
+    checkpoints: result.checkpoints.map((cp) => {
+      // dumps must reflect this checkpoint, not the end of the run
+      const { ram: snap, ...rest } = cp;
+      const image = snap ?? machine.ram;
+      return {
+        ...rest,
+        ascii: opts.ascii ? screenAsciiFromRam(image) : undefined,
+        screen: opts.dump.has("screen") ? wordsToBin(image.subarray(0x4000, 0x6000)) : undefined,
+        ram: opts.dump.has("ram") ? wordsToBin(image.subarray(0, 0x4000)) : undefined,
+      };
+    }),
     watch: result.watchEvents,
   };
   process.stdout.write(JSON.stringify(out, null, 1) + "\n");

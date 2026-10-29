@@ -164,6 +164,24 @@ test("OS String: append/charAt/intValue/setInt incl. -32768", () => {
   assert.equal(m.ram[622], 13);
 });
 
+test("OS String.setInt respects maxLength (no heap overrun)", () => {
+  const m = runOs(MAIN_WRAP(`
+    let neg = 0 - 32767 - 1;   // -32768
+    let tiny = String.new(2);
+    do tiny.setInt(neg);
+    do Memory.poke(640, tiny.length());
+    do Memory.poke(641, tiny.charAt(0));
+    do Memory.poke(642, tiny.charAt(1));
+    let empty = String.new(0);
+    do empty.setInt(neg);
+    do Memory.poke(643, empty.length());
+  `, "var String tiny;\n    var String empty;\n    var int neg;"));
+  assert.equal(m.ram[640], 2, "length clamped to capacity");
+  assert.equal(m.ram[641], 45, "'-' kept");
+  assert.equal(m.ram[642], 51, "'3' kept");
+  assert.equal(m.ram[643], 0, "zero-capacity string stays empty");
+});
+
 // ---------- Screen ----------
 
 test("OS Screen: SPEC pixel mapping, drawPixel bits, rectangle, clear", () => {
@@ -196,6 +214,19 @@ test("OS Screen: SPEC pixel mapping, drawPixel bits, rectangle, clear", () => {
   assert.equal(m.ram[635], 0);
   assert.equal(m.ram[636], 0x0fff); // x 100..111 -> word 6 (px 96..111): bits 11..0
   assert.equal(m.ram[637], 0);
+});
+
+test("OS Screen.drawRectangle clips y to the screen (no heap writes)", () => {
+  const m = runOs(MAIN_WRAP(`
+    do Screen.setColor(1);
+    do Screen.drawRectangle(0, -5, 511, -5);
+    do Screen.drawRectangle(0, -200, 511, -1);
+    do Screen.drawRectangle(0, 250, 511, 300);
+  `));
+  assert.equal(m.ram[16384 - 160], 0, "row y=-5 must not address the heap");
+  assert.equal(m.ram[16384 - 32], 0, "row y=-1 must not address the heap");
+  assert.equal(m.ram[16384 + 250 * 32], 0xffff, "visible rows still drawn");
+  assert.equal(m.ram[16384 + 255 * 32], 0xffff, "last visible row drawn");
 });
 
 // ---------- Output ----------

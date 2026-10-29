@@ -83,14 +83,21 @@ export function assemble(src: string): AssembleResult {
         errors.push({ line: lineNos[i], msg: `invalid label name: ${name}` });
         continue;
       }
-      if (name in PREDEFINED || name in labels) {
+      if (Object.hasOwn(PREDEFINED, name) || Object.hasOwn(labels, name)) {
         errors.push({ line: lineNos[i], msg: `duplicate label: ${name}` });
+        continue;
+      }
+      if (romAddr > 0x7fff) {
+        errors.push({ line: lineNos[i], msg: `label outside 32K ROM: ${name} @ ${romAddr}` });
         continue;
       }
       labels[name] = romAddr;
     } else {
       romAddr++;
     }
+  }
+  if (romAddr > 0x8000) {
+    errors.push({ line: lineNos[lines.length - 1] ?? 0, msg: `program exceeds 32768 words (${romAddr})` });
   }
 
   // ---- pass 2: emit ----
@@ -115,7 +122,7 @@ export function assemble(src: string): AssembleResult {
           continue;
         }
       } else if (sym.length > 0 && IDENT_RE.test(sym)) {
-        if (sym in symbols) {
+        if (Object.hasOwn(symbols, sym)) {
           value = symbols[sym];
         } else {
           if (nextVar > 0x3fff) {
@@ -127,6 +134,10 @@ export function assemble(src: string): AssembleResult {
         }
       } else {
         err(i, `invalid A-instruction symbol: ${sym}`);
+        continue;
+      }
+      if (value > 0x7fff) {
+        err(i, `A-instruction value out of range (0..32767): ${sym}`);
         continue;
       }
       words.push(value & 0x7fff);
@@ -174,14 +185,14 @@ function encodeC(line: string): number | string {
   }
 
   if (jumpPart !== null) {
-    if (!(jumpPart in JUMP)) return `invalid jump: ${jumpPart}`;
+    if (!Object.hasOwn(JUMP, jumpPart)) return `invalid jump: ${jumpPart}`;
   }
 
   let aBit = 0;
   let comp: number | undefined;
-  if (compPart in COMP_A0) {
+  if (Object.hasOwn(COMP_A0, compPart)) {
     comp = COMP_A0[compPart];
-  } else if (compPart in COMP_A1) {
+  } else if (Object.hasOwn(COMP_A1, compPart)) {
     comp = COMP_A1[compPart];
     aBit = 1;
   } else {
@@ -209,6 +220,7 @@ export function parseHack(text: string): Uint16Array {
     const line = raw.trim();
     if (line.length === 0) continue;
     if (!/^[01]{16}$/.test(line)) throw new Error(`bad .hack line: "${line}"`);
+    if (words.length >= 0x8000) throw new Error("ROM exceeds 32768 words");
     words.push(parseInt(line, 2));
   }
   return new Uint16Array(words);

@@ -25,7 +25,7 @@ async function main(): Promise<number> {
   }
   const chunks: Buffer[] = [];
   for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
-  const src = Buffer.concat(chunks).toString("utf8");
+  const src = Buffer.concat(chunks).toString("utf8").replace(/^\uFEFF/, "");
   const { commands, errors } = parseVm(src);
   if (errors.length > 0) {
     for (const e of errors) process.stderr.write(`<stdin>:${e.line}: error: ${e.msg}\n`);

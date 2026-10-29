@@ -195,3 +195,27 @@ test("Tetris golden run: hackrun CLI reproduces every checkpoint hash", () => {
     golden.checkpoints.map((cp) => [cp.cycle, cp.screenSha256]),
   );
 });
+
+test("Tetris: a held direction key keeps auto-repeating", () => {
+  const start = golden.checkpoints[0].cycle; // first piece (O) spawned
+  const hold = 40_000_000;
+  const input = parseInputScript(`${start} 39\n${start + hold} 0`);
+  const m = new HackMachine(rom, { input });
+  m.run({ until: start, input });
+  const type = s16(m.ram[ADDR.curType]);
+  assert.equal(type, 1, "first piece is O");
+  let lastX = s16(m.ram[ADDR.curX]);
+  let moves = 0;
+  for (let c = start; c <= start + hold; c += 100_000) {
+    m.run({ until: c, input });
+    if (s16(m.ram[ADDR.curType]) !== type) break; // first piece locked
+    const x = s16(m.ram[ADDR.curX]);
+    if (x !== lastX) {
+      moves += 1;
+      lastX = x;
+    }
+  }
+  // A stale repeat counter stops after 3 dispatches; a wrapping one keeps
+  // moving until the wall blocks the piece.
+  assert.ok(moves > 3, `held key repeats (moves=${moves}, x=${lastX})`);
+});

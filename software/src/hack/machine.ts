@@ -34,6 +34,8 @@ export interface Checkpoint {
   pc: number;
   sp: number;
   screenSha256: string;
+  /** Full RAM copy when RunOptions.captureRam is set (for CLI dumps). */
+  ram?: Uint16Array;
 }
 
 export interface WatchEvent {
@@ -51,6 +53,8 @@ export interface RunOptions {
   input?: KeyEntry[];
   /** snapshot after completing each of these cycles (dedup + sorted automatically) */
   checkpoints?: number[];
+  /** include a full RAM copy in each Checkpoint (default false; costs a copy per cp) */
+  captureRam?: boolean;
   /** log value changes of these RAM addresses */
   watch?: number[];
 }
@@ -213,35 +217,19 @@ export class HackMachine {
 
   /** Render the screen as ASCII ('#'/'.'): 64x32 grid of 8x8-pixel blocks. */
   screenAscii(): string {
-    let out = "";
-    for (let by = 0; by < 32; by++) {
-      for (let bx = 0; bx < 64; bx++) {
-        let any = false;
-        outer:
-        for (let py = 0; py < 8; py++) {
-          const word = this.ram[SCREEN_START + (by * 8 + py) * 32 + (bx >> 1)];
-          const v = (bx & 1) === 0 ? (word >>> 8) & 0xff : word & 0xff;
-          if (v !== 0) {
-            any = true;
-            break outer;
-          }
-        }
-        out += any ? "#" : ".";
-      }
-      out += "\n";
-    }
-    return out;
+    return screenAsciiFromRam(this.ram);
   }
 
   /**
    * Run per RunOptions. Checkpoint semantics: the snapshot for cycle c is taken
    * AFTER the instruction fetched at cycle c has fully completed. The run stops
-   * when: until/maxCycles reached (cycle N inclusive), the last checkpoint fired,
-   * or the PC runs off the program.
+   * when: until reached (cycle N inclusive), the last checkpoint fired, maxCycles
+   * instructions have executed, or the PC runs off the program.
    */
   run(opts: RunOptions = {}): RunResult {
     const maxCycles = opts.maxCycles ?? 1_000_000_000;
     const until = opts.until ?? Number.MAX_SAFE_INTEGER;
+    const captureRam = opts.captureRam === true;
     // full keyboard script must be available even if run() is called repeatedly
     if (opts.input && opts.input !== this.input) {
       this.input = opts.input;
@@ -250,9 +238,10 @@ export class HackMachine {
     const cpCycles = [...new Set(opts.checkpoints ?? [])].sort((x, y) => x - y);
     const checkpoints: Checkpoint[] = [];
     const lastCp = cpCycles.length > 0 ? cpCycles[cpCycles.length - 1] : Number.MAX_SAFE_INTEGER;
-    const stopCycle = Math.min(until, lastCp, maxCycles);
+    const capCycle = maxCycles - 1; // maxCycles counts instructions, cycles are 0-based
+    const stopCycle = Math.min(until, lastCp, capCycle);
     let haltReason: RunResult["haltReason"] =
-      stopCycle >= maxCycles ? "max-cycles" : "until";
+      stopCycle === capCycle && capCycle < until && capCycle < lastCp ? "max-cycles" : "until";
 
     // A checkpoint that was already completed by an earlier run() cannot be
     // reconstructed (the state is gone), so surface the misuse instead of
@@ -286,6 +275,7 @@ export class HackMachine {
         pc,
         sp: ram[0],
         screenSha256: screenSha256(ram.subarray(SCREEN_START, SCREEN_END)),
+        ram: captureRam ? ram.slice() : undefined,
       });
     };
 
@@ -396,6 +386,28 @@ export class HackMachine {
       finalPc: this.pc,
     };
   }
+}
+
+/** Render a RAM image as ASCII ('#'/'.'): 64x32 grid of 8x8-pixel blocks. */
+export function screenAsciiFromRam(ram: Uint16Array): string {
+  let out = "";
+  for (let by = 0; by < 32; by++) {
+    for (let bx = 0; bx < 64; bx++) {
+      let any = false;
+      outer:
+      for (let py = 0; py < 8; py++) {
+        const word = ram[SCREEN_START + (by * 8 + py) * 32 + (bx >> 1)];
+        const v = (bx & 1) === 0 ? (word >>> 8) & 0xff : word & 0xff;
+        if (v !== 0) {
+          any = true;
+          break outer;
+        }
+      }
+      out += any ? "#" : ".";
+    }
+    out += "\n";
+  }
+  return out;
 }
 
 /** Parse a keyboard input script: lines "cycle keycode" (decimal, non-decreasing). */

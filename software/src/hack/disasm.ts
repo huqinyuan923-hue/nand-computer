@@ -34,7 +34,7 @@ const JUMP_BY: string[] = new Array(8).fill("");
 }
 
 /** Disassemble words; address >= words.length or unused encodings become "// ?" markers. */
-export function disassemble(words: Uint16Array, opts: { labels?: Record<string, number> } = {}): string {
+export function disassemble(words: Uint16Array, opts: { labels?: Record<number, string> } = {}): string {
   const labels = opts.labels ?? {};
   const out: string[] = [];
   for (let addr = 0; addr < words.length; addr++) {

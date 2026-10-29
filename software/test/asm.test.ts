@@ -126,3 +126,35 @@ test("parseHack rejects malformed lines", () => {
   assert.throws(() => parseHack("hello\n"));
   assert.deepEqual([...parseHack("0100000000000000\n\n0000000000000010")], [0x4000, 2]);
 });
+
+test("prototype-named symbols are ordinary identifiers", () => {
+  const r = assemble("@toString\nD=A\n(toString2)\n@toString2\n0;JMP");
+  assert.deepEqual(r.errors, []);
+  assert.equal(r.symbols.toString, 16, "@toString is a variable, not Object.prototype");
+  assert.equal(r.symbols.toString2, 2, "label named toString2 resolves normally");
+  assert.ok(assemble("D=toString").errors.length > 0, "prototype names are not comps");
+  assert.ok(assemble("D=toString;JMP").errors.length > 0);
+  assert.ok(assemble("value=constructor").errors.length > 0);
+});
+
+test("ROM limit: >32768 words and labels at 32768 are rejected", () => {
+  const big = Array.from({ length: 32769 }, () => "@0").join("\n");
+  const r = assemble(big);
+  assert.ok(r.errors.some((e) => /exceeds 32768/.test(e.msg)), JSON.stringify(r.errors.slice(0, 2)));
+
+  const edge = Array.from({ length: 32768 }, () => "@0").join("\n") + "\n(END)\n@END";
+  const rEdge = assemble(edge);
+  assert.ok(rEdge.errors.some((e) => /outside 32K ROM/.test(e.msg)));
+
+  const full = Array.from({ length: 32768 }, () => "@0").join("\n") + "\n@5";
+  const rFull = assemble(full);
+  assert.ok(rFull.errors.some((e) => /exceeds 32768/.test(e.msg)));
+
+  const huge = "0000000000000000\n".repeat(32769);
+  assert.throws(() => parseHack(huge), /32768/);
+});
+
+test("disasm labels map addresses to names", () => {
+  const out = disassemble(Uint16Array.from([5, 0xea87]), { labels: { 0: "START" } });
+  assert.equal(out, "(START)\n@5\n0;JMP\n");
+});

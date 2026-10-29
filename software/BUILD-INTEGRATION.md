@@ -6,9 +6,9 @@
 
 | 路径 | 内容 | 产生命令 |
 |------|------|----------|
-| `software/golden/tetris/tetris.hack` | Tetris ROM，32540 字（< 32768），`romSha256=d84e4458…99d5` | `npm run record:tetris`（或 `npm run build:tetris`） |
-| `software/golden/tetris/input.txt` | 黄金输入脚本，26 条 `cycle keycode`（SPEC 行格式），首个事件 `5651280 39` | `npm run record:tetris` |
-| `software/golden/tetris/checkpoints.json` | 运行元数据 + 7 个检查点（周期、标签、屏幕 SHA-256、游戏状态），`totalCycles=174971745` | `npm run record:tetris` |
+| `software/golden/tetris/tetris.hack` | Tetris ROM，32094 字（< 32768），`romSha256=aaa3b68c…40de` | `npm run record:tetris`（或 `npm run build:tetris`） |
+| `software/golden/tetris/input.txt` | 黄金输入脚本，25 条 `cycle keycode`（SPEC 行格式），首个事件 `5344668 39` | `npm run record:tetris` |
+| `software/golden/tetris/checkpoints.json` | 运行元数据 + 7 个检查点（周期、标签、屏幕 SHA-256、游戏状态），`totalCycles=166446228` | `npm run record:tetris` |
 | `software/golden/tetris/integration-spec.json` | 硬件轨集成驱动 spec（内联脚本 + `expect.checkpoints` 7 个哈希） | `npm run record:tetris` |
 | `software/golden/tetris/demo-meta.json` | demo 用地址映射：`sceneDirty` 静态变量（RAM 43）+ 调试单元 `0x3F00..0x3F06` | `npm run record:tetris` |
 | `software/demo/index.html` | 浏览器行为级 demo 页面（提交入库） | 手写 |
@@ -21,7 +21,7 @@ ROM 与输入脚本由闭环录制工具 `tools/record-tetris.mjs` 生成：它�
 ```bash
 cd software
 npm install        # 仅 devDependencies（typescript、@types/node）；运行时零依赖
-npm test           # tsc + node:test：58/58（含 1000 例种子化差分）
+npm test           # tsc + node:test：71/71（含 1000 例种子化差分）
 npm run build:tetris        # 只建 ROM：stdout=.hack，stderr=ROM 占用量，溢出退出码 1
 npm run record:tetris       # 重录 golden/（约 10 秒：构建 + 驱动真实 ROM + 回放校验）
 npm run build:demo          # tsc -p tsconfig.demo.json + 拷贝 golden 资产到 demo/
@@ -37,7 +37,7 @@ npm run build:demo          # tsc -p tsconfig.demo.json + 拷贝 golden 资产�
 
 性能（本机 60M 周期基准，best-of-3）：`HackMachine` 约 95M 周期/秒，浏览器 `HackCore` 约 105M 周期/秒；demo 只对变化屏幕字做脏矩形重绘。
 
-已知语义边界：VM `gt/lt` 采用 nand2tetris 参考翻译器的“16 位环绕差值”判定；异号且 `|x-y| >= 32768` 时与数学比较不符。防溢出内联展开每处约 +14 字，Tetris 有 76 处比较、ROM 余量仅约 228 字，故保留紧凑实现（`src/vm/translate.ts` 注释、`test/vm.test.ts` 有固定用例）。Tetris 实际比较数值远小于 32768，行为不受影响。
+已知语义边界：VM `gt/lt` 采用 nand2tetris 参考翻译器的“16 位环绕差值”判定；异号且 `|x-y| >= 32768` 时与数学比较不符。防溢出内联展开每处约 +14 字，Tetris 有 76 处比较、ROM 余量约 674 字，故保留紧凑实现（`src/vm/translate.ts` 注释、`test/vm.test.ts` 有固定用例）。Tetris 实际比较数值远小于 32768，行为不受影响。
 
 ## 3. 哈希与检查点口径（跨轨统一）
 
@@ -51,13 +51,13 @@ npm run build:demo          # tsc -p tsconfig.demo.json + 拷贝 golden 资产�
 
 | 周期 | 状态 | 屏幕哈希前缀 |
 |------|------|--------------|
-| 5,651,279 | 开局：首块 O 生成 | `376f24bd…` |
-| 40,005,851 | 第 1 块 O 落定 @x=7 | `f1ecc160…` |
-| 69,822,866 | 第 2 块 T 落定 @x=2 | `94378e5f…` |
-| 103,967,519 | 第 3 块 S 落定 @x=0 | `02b6860c…` |
-| 136,197,350 | 第 4 块 Z 落定 @x=4 | `7ca9ca22…` |
-| 137,821,592 | 第 5 块 J 空中旋转到 r=1 | `21d47120…` |
-| 174,971,744 | 第 5 块 J 落定 @x=6，消一行 | `eb9348b8…` |
+| 5,344,667 | 开局：首块 O 生成 | `376f24bd…` |
+| 37,946,240 | 第 1 块 O 落定 @x=7 | `f1ecc160…` |
+| 66,307,349 | 第 2 块 T 落定 @x=2 | `94378e5f…` |
+| 98,758,622 | 第 3 块 S 落定 @x=0 | `02b6860c…` |
+| 129,458,399 | 第 4 块 Z 落定 @x=4 | `7ca9ca22…` |
+| 131,006,990 | 第 5 块 J 空中旋转到 r=1 | `21d47120…` |
+| 166,446,227 | 第 5 块 J 落定 @x=6，消一行 | `eb9348b8…` |
 
 终局 `lines=1, score=100`（单行消行计 100 分，经 `Output.printInt` 显示）。
 
@@ -71,11 +71,11 @@ node --no-warnings tools/run-integration.ts --spec ../software/golden/tetris/int
 # 等价：npm run integ -- --spec ../software/golden/tetris/integration-spec.json
 ```
 
-spec 要点：`hack` 相对仓库根（`software/golden/tetris/tetris.hack`）；`script` 内联 26 条事件；`cycles=174971745`；`checkpoints` 为 7 个周期；`expect.checkpoints` 为周期 → 屏幕哈希。驱动每个周期比较门级与 oracle 的 `pc/a/d/addressM/writeM/outM`，在检查点周期分别对两边的屏幕取哈希。
+spec 要点：`hack` 相对仓库根（`software/golden/tetris/tetris.hack`）；`script` 内联 25 条事件；`cycles=166446228`；`checkpoints` 为 7 个周期；`expect.checkpoints` 为周期 → 屏幕哈希。驱动每个周期比较门级与 oracle 的 `pc/a/d/addressM/writeM/outM`，在检查点周期分别对两边的屏幕取哈希。
 
-退出码 0 当且仅当 `oracleDiff.ok && expectOk`。全量脚本约 1.75 亿周期，门级模拟约 207k 周期/秒，单次运行约 14 分钟；开局检查点（5,651,279）的哈希 `376f24bd…` 已与 `hackrun` 输出逐位一致，验证了两轨的周期/检查点约定。
+退出码 0 当且仅当 `oracleDiff.ok && expectOk`。全量脚本约 1.66 亿周期，门级模拟约 207k 周期/秒，单次运行约 14 分钟；开局检查点（5,344,667）的哈希 `376f24bd…` 已与 `hackrun` 输出逐位一致，验证了两轨的周期/检查点约定。
 
-集成验证结果（2026-10-28，软件轨记录，全量 174,971,745 周期）：
+集成验证结果（2026-10-29，软件轨记录，全量 166,446,228 周期，审计修复后重跑）：
 
 - `oracleDiff.ok = true`，`firstDivergence = null`（全程门级 = 行为级 oracle）
 - `expectOk = true`（7/7 检查点：门级哈希 = oracle 哈希 = `checkpoints.json` 黄金哈希）
@@ -104,7 +104,7 @@ python -m http.server 8000     # 任意静态服务器均可；必须走 HTTP，
   npm run build:demo
   npx wrangler pages deploy demo --project-name nand-computer-demo --branch main
   ```
-- 发布后复核：直接加载一次页面（让 Pages 边缘缓存生效），再比对线上 `tetris.hack` 的 SHA-256 与 `golden/tetris/tetris.hack` 一致。2026-10-28 实测线上 `tetris.hack` 哈希一致，Chromium 中开机渲染、方向键移动、黄金脚本回放（`LINES 1 · SCORE 100`）均正常，控制台零错误。
+- 发布后复核：直接加载一次页面（让 Pages 边缘缓存生效），再比对线上 `tetris.hack` 的 SHA-256 与 `golden/tetris/tetris.hack` 一致。2026-10-29 重发布后实测：线上 `tetris.hack`/`input.txt`/`meta.json`/`engine.js`/`ui.js`/`index.html` 哈希均与本地构建一致，Chromium 中开机渲染、方向键移动、黄金脚本回放（`LINES 1 · SCORE 100`，画布哈希 1723327576）均正常，控制台零错误。
 
 ## 6. 复现与边界
 

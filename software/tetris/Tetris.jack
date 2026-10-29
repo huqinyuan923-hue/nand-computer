@@ -353,6 +353,10 @@ class Tetris {
                     }
                 }
             }
+            // wrap the counter so a held key keeps auto-repeating
+            if (repeatCnt > 3) {
+                let repeatCnt = 0;
+            }
         }
         let prevKey = key;
         return key;

@@ -178,6 +178,13 @@ class Screen {
             let y1 = y2;
             let y2 = t;
         }
+        // clip to the screen: a negative y1 would address the heap
+        if (y1 < 0) {
+            let y1 = 0;
+        }
+        if (y2 > 255) {
+            let y2 = 255;
+        }
         let base = 16384 + (y1 * 32);
         let y = y1;
         while (~(y2 < y)) {

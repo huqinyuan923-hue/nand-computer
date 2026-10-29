@@ -24,12 +24,15 @@ const SEG_BASE: Record<string, string> = {
 export function translateVm(commands: VmCommand[], opts: TranslateOptions): string {
   const out: string[] = [];
   let labelCounter = 0;
+  let currentFunc: string | null = null;
   const mod = opts.module;
 
   const emit = (...lines: string[]): void => {
     out.push(...lines);
   };
   const fresh = (tag: string): string => `${mod}$${tag}.${labelCounter++}`;
+  // VM labels are function-scoped; top-level (pre-function) labels use the module.
+  const labelSym = (name: string): string => `${currentFunc ?? mod}$${name}`;
 
   if (opts.bootstrap) {
     // full call frame so Sys.init may return; returning lands in the halt loop
@@ -98,7 +101,7 @@ export function translateVm(commands: VmCommand[], opts: TranslateOptions): stri
         // binary: pop y into D, x is the new top; result replaces x.
         // comp mnemonics require D on the left (D+M, M-D, D&M, D|M).
         emit(
-          "@SP", "M=M-1", "A=M", "D=M", // y -> D
+          "@SP", "AM=M-1", "D=M", // y -> D
           "@SP", "A=M-1", // top now x
         );
         const op = cmd.type === "add" ? "D+M" : cmd.type === "sub" ? "M-D" : cmd.type === "and" ? "D&M" : "D|M";
@@ -124,7 +127,7 @@ export function translateVm(commands: VmCommand[], opts: TranslateOptions): stri
         const labelEnd = fresh(cmd.type.toUpperCase() + ".END");
         const jump = cmd.type === "eq" ? "JEQ" : cmd.type === "gt" ? "JGT" : "JLT";
         emit(
-          "@SP", "M=M-1", "A=M", "D=M", // y -> D
+          "@SP", "AM=M-1", "D=M", // y -> D
           "@SP", "A=M-1", "D=M-D", // x - y
           `@${labelTrue}`, `D;${jump}`,
           "@SP", "A=M-1", "M=0",
@@ -136,15 +139,16 @@ export function translateVm(commands: VmCommand[], opts: TranslateOptions): stri
         break;
       }
       case "label":
-        emit(`(${mod}$${cmd.arg1})`);
+        emit(`(${labelSym(cmd.arg1!)})`);
         break;
       case "goto":
-        emit(`@${mod}$${cmd.arg1}`, "0;JMP");
+        emit(`@${labelSym(cmd.arg1!)}`, "0;JMP");
         break;
       case "if-goto":
-        emit("@SP", "M=M-1", "A=M", "D=M", `@${mod}$${cmd.arg1}`, "D;JNE");
+        emit("@SP", "AM=M-1", "D=M", `@${labelSym(cmd.arg1!)}`, "D;JNE");
         break;
       case "function": {
+        currentFunc = cmd.arg1!;
         // function names are fully qualified (Class.sub) and global — no prefix.
         // Locals init via push constant 0 (4 words each with the short form,
         // and it advances SP past the locals — the direct-store form would not).
@@ -177,7 +181,7 @@ export function translateVm(commands: VmCommand[], opts: TranslateOptions): stri
           "@LCL", "D=M", "@R13", "M=D",
           "@5", "A=D-A", "D=M", "@R14", "M=D",
           // *ARG = pop()
-          "@SP", "M=M-1", "A=M", "D=M", "@ARG", "A=M", "M=D",
+          "@SP", "AM=M-1", "D=M", "@ARG", "A=M", "M=D",
           // SP = ARG+1
           "@ARG", "D=M", "@SP", "M=D+1",
           // restore THAT, THIS, ARG, LCL
@@ -266,7 +270,7 @@ export function translateVm(commands: VmCommand[], opts: TranslateOptions): stri
     const lines = [
       ...head, "@R13", "M=D",
       `@${V}`, "D=A", "@SP", "M=M+1", "A=M-1", "M=D",
-      "@SP", "M=M-1", "A=M", "D=M", "@R13", "A=M", "M=D",
+      "@SP", "AM=M-1", "D=M", "@R13", "A=M", "M=D",
     ];
     return { lines, consumed: 6 };
   }
@@ -305,7 +309,10 @@ export function translateVm(commands: VmCommand[], opts: TranslateOptions): stri
       ...loadSegValue(c0.arg1, c0.arg2!, modName),
       "@R13", "M=D",
       ...loadSegValue(c1.arg1, c1.arg2!, modName),
-      "@R13", "D=D+M", "A=D", "D=M",
+      "@R13", "D=D+M",
+      // The elided `pop pointer 1` must still set THAT (observable by later pushes).
+      "@THAT", "M=D",
+      "A=D", "D=M",
       "@SP", "M=M+1", "A=M-1", "M=D",
     ];
     return { lines, consumed: 5 };
@@ -342,19 +349,21 @@ export function translateVm(commands: VmCommand[], opts: TranslateOptions): stri
   function emitPop(cmd: VmCommand, modName: string): void {
     const seg = cmd.arg1!;
     const idx = cmd.arg2!;
+    // `AM=M-1` writes the decremented SP back to RAM[0] (M targets the *old* A)
+    // and leaves A = top, so the pop head costs 3 words instead of 4.
     if (seg in SEG_BASE) {
       emit(
         // addr (R13) = base + idx
         `@${SEG_BASE[seg]}`, "D=M", `@${idx}`, "D=D+A", "@R13", "M=D",
         // *SP-- -> *addr
-        "@SP", "M=M-1", "A=M", "D=M", "@R13", "A=M", "M=D",
+        "@SP", "AM=M-1", "D=M", "@R13", "A=M", "M=D",
       );
     } else if (seg === "temp") {
-      emit("@SP", "M=M-1", "A=M", "D=M", `@${5 + idx}`, "M=D");
+      emit("@SP", "AM=M-1", "D=M", `@${5 + idx}`, "M=D");
     } else if (seg === "pointer") {
-      emit("@SP", "M=M-1", "A=M", "D=M", `@${idx === 0 ? "THIS" : "THAT"}`, "M=D");
+      emit("@SP", "AM=M-1", "D=M", `@${idx === 0 ? "THIS" : "THAT"}`, "M=D");
     } else {
-      emit("@SP", "M=M-1", "A=M", "D=M", `@${modName}.${idx}`, "M=D");
+      emit("@SP", "AM=M-1", "D=M", `@${modName}.${idx}`, "M=D");
     }
   }
 }

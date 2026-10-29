@@ -97,15 +97,19 @@ class String {
             let n = q;
         }
         if (neg = 1) {
-            let p = data + len;
-            let p[0] = 45; // '-'
-            let len = len + 1;
+            if (len < maxLength) {
+                let p = data + len;
+                let p[0] = 45; // '-'
+                let len = len + 1;
+            }
         }
         while (nd > 0) {
             let nd = nd - 1;
-            let p = data + len;
-            let p[0] = digits[nd];
-            let len = len + 1;
+            if (len < maxLength) {
+                let p = data + len;
+                let p[0] = digits[nd];
+                let len = len + 1;
+            }
         }
         do digits.dispose();
         return;

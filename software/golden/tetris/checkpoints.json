@@ -1,9 +1,9 @@
 {
   "program": "golden/tetris/tetris.hack",
   "input": "golden/tetris/input.txt",
-  "romWords": 32540,
-  "romSha256": "d84e44589e7b33e2c309e7999121b4a2e8ff65ede4ea468aeea0057015dc99d5",
-  "totalCycles": 174971745,
+  "romWords": 32094,
+  "romSha256": "aaa3b68c8db2f61a40be920e48201a1752ee2ae85ad485ba56ac5fe8d9de40de",
+  "totalCycles": 166446228,
   "final": {
     "lines": 1,
     "score": 100,
@@ -11,7 +11,7 @@
   },
   "checkpoints": [
     {
-      "cycle": 5651279,
+      "cycle": 5344667,
       "label": "boot: first piece spawned",
       "screenSha256": "376f24bd52ab73070573d1f8c0862649454e3c111f0239db105ade32427f0b77",
       "lines": 0,
@@ -22,7 +22,7 @@
       "curRot": 0
     },
     {
-      "cycle": 40005851,
+      "cycle": 37946240,
       "label": "piece 1 O: locked @x=7 r=0; lines=0 score=0",
       "screenSha256": "f1ecc160047beb2d4374eb1b708ef69416769092d6e207b27bbe56c0dbb5244b",
       "lines": 0,
@@ -33,7 +33,7 @@
       "curRot": 0
     },
     {
-      "cycle": 69822866,
+      "cycle": 66307349,
       "label": "piece 2 T: locked @x=2 r=0; lines=0 score=0",
       "screenSha256": "94378e5f0c090b57e962f42acb81c4d17aa670bfe3eb03c4cb68e8d5b67de76f",
       "lines": 0,
@@ -44,7 +44,7 @@
       "curRot": 0
     },
     {
-      "cycle": 103967519,
+      "cycle": 98758622,
       "label": "piece 3 S: locked @x=0 r=0; lines=0 score=0",
       "screenSha256": "02b6860cc521af8a5dff15f35673d0fa7a1926b2f5937418b6cb15f552bd9b98",
       "lines": 0,
@@ -55,7 +55,7 @@
       "curRot": 0
     },
     {
-      "cycle": 136197350,
+      "cycle": 129458399,
       "label": "piece 4 Z: locked @x=4 r=0; lines=0 score=0",
       "screenSha256": "7ca9ca2202e5f065f9cfa48fa28102c46f456ac52ba78706726632e897fa8910",
       "lines": 0,
@@ -66,7 +66,7 @@
       "curRot": 0
     },
     {
-      "cycle": 137821592,
+      "cycle": 131006990,
       "label": "piece 5 J: rotated to 1 (mid-air)",
       "screenSha256": "21d471203f56ee6b2a5e2168641d0898e9a93cb208bb548c52e699b9e194e866",
       "lines": 0,
@@ -77,7 +77,7 @@
       "curRot": 1
     },
     {
-      "cycle": 174971744,
+      "cycle": 166446227,
       "label": "piece 5 J: locked @x=6 r=1; lines=1 score=100",
       "screenSha256": "eb9348b83bce2d4857af1ad0e7b72af2435b33fb9c6a6d41f716b4d222f23b34",
       "lines": 1,

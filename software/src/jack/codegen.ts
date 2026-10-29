@@ -137,19 +137,8 @@ function compileSubroutine(cls: ClassDecl, sub: SubroutineDec, ctx: CompileCtx):
   }
 }
 
-/** Resolve the fully-qualified callee name for a call expression. */
-function calleeFullName(ctx: CompileCtx, call: Extract<Expr, { kind: "call" }>): string {
-  if (call.target === undefined) {
-    return `${ctx.className}.${call.name}`;
-  }
-  const sym = lookup(ctx, call.target);
-  if (sym !== null && !sym.type.endsWith("[]") && !isPrimitiveScalar(sym.type)) {
-    return `${sym.type}.${call.name}`;
-  }
-  return `${call.target}.${call.name}`;
-}
-
-function lookup(ctx: CompileCtx, name: string): SymEntry | null {  if (name in ctx.subSyms) return ctx.subSyms[name];
+function lookup(ctx: CompileCtx, name: string): SymEntry | null {
+  if (name in ctx.subSyms) return ctx.subSyms[name];
   if (name in ctx.classSyms) return ctx.classSyms[name];
   return null;
 }
@@ -235,10 +224,9 @@ function compileStatement(st: Stat, ctx: CompileCtx): void {
     }
     case "do": {
       compileExpr(st.call, ctx);
-      // void callees leave no value on the stack — nothing to discard
-      if (ctx.subroutineRets.get(calleeFullName(ctx, st.call)) !== "void") {
-        out.push("pop temp 0");
-      }
+      // VM `return` leaves one word at *ARG even for void callees, so every
+      // discarded call must drop it or the caller's SP drifts up by 1 per call.
+      out.push("pop temp 0");
       return;
     }
     case "return": {
@@ -247,7 +235,6 @@ function compileStatement(st: Stat, ctx: CompileCtx): void {
       } else if (ctx.currentReturnType !== "void") {
         out.push("push constant 0");
       }
-      // void returns carry no value (paired with do-callers that skip the pop)
       out.push("return");
       return;
     }

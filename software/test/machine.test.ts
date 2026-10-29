@@ -145,6 +145,33 @@ test("checkpoints already in the past are rejected instead of fabricated", () =>
   assert.equal(r.checkpoints[0].a, m.a);
 });
 
+test("maxCycles caps executed instructions (no off-by-one)", () => {
+  const prog = assembleOrThrow(["@1", "D=A", "@2", "M=D", "(H)", "@H", "0;JMP"].join("\n"));
+  const m = new HackMachine(prog);
+  const r = m.run({ maxCycles: 1 });
+  assert.equal(r.cyclesExecuted, 1);
+  assert.equal(m.pc, 1);
+  assert.equal(r.haltReason, "max-cycles");
+  const m0 = new HackMachine(prog);
+  const r0 = m0.run({ maxCycles: 0 });
+  assert.equal(r0.cyclesExecuted, 0);
+  assert.equal(m0.pc, 0);
+  assert.equal(r0.haltReason, "max-cycles");
+});
+
+test("captureRam snapshots the machine at each checkpoint", () => {
+  const prog = assembleOrThrow(["@1", "D=A", "@2", "M=D", "@3", "M=D", "(H)", "@H", "0;JMP"].join("\n"));
+  const m = new HackMachine(prog);
+  const r = m.run({ checkpoints: [0, 3, 5], captureRam: true });
+  assert.deepEqual(r.checkpoints.map((c) => c.cycle), [0, 3, 5]);
+  assert.equal(r.checkpoints[0].ram?.[2], 0, "before RAM[2] was written");
+  assert.equal(r.checkpoints[1].ram?.[2], 1, "RAM[2]=1 after cycle 3");
+  assert.equal(r.checkpoints[2].ram?.[3], 1, "RAM[3]=1 after cycle 5");
+  assert.equal(m.ram[3], 1);
+  const noRam = new HackMachine(prog).run({ checkpoints: [1] });
+  assert.equal(noRam.checkpoints[0].ram, undefined);
+});
+
 test("screen hash matches SPEC definition (node:crypto reference)", () => {
   const prog = assembleOrThrow([
     "@4660", "D=A", "@16384", "M=D", // RAM[0x4000] = 0x1234

@@ -190,3 +190,45 @@ test("VM parser rejects bad commands", () => {
   assert.ok(parseVm("call f x").errors.length > 0);
   assert.deepEqual(parseVm("push static 3 // ok").errors, []);
 });
+
+test("labels are function-scoped: same label name in two functions", () => {
+  const m = runVm([
+    "call Test.f 0", "pop temp 0",
+    "call Test.g 0", "pop temp 1",
+    "label SPIN", "goto SPIN",
+    "function Test.f 0",
+    "label LOOP",
+    "push constant 11",
+    "return",
+    "function Test.g 0",
+    "label LOOP",
+    "push constant 22",
+    "return",
+  ].join("\n"));
+  assert.equal(m.ram[5], 11, "Test.f returned 11");
+  assert.equal(m.ram[6], 22, "Test.g returned 22");
+});
+
+test("array-read peephole still sets THAT (pop pointer 1 side effect)", () => {
+  const prelude = [
+    "@256", "D=A", "@SP", "M=D",
+    "@1000", "D=A", "@LCL", "M=D",
+    "@1000", "D=A", "@1000", "M=D", // local 0 = 1000
+    "@3", "D=A", "@1001", "M=D", // local 1 = 3
+    "@11", "D=A", "@1003", "M=D", // arr[3]
+    "@22", "D=A", "@1004", "M=D", // arr[4]
+  ].join("\n");
+  const m = runVm([
+    "push local 0", "push local 1", "add", "pop pointer 1", "push that 0",
+    "pop temp 0",
+    "push that 1", // THAT must still be 1003 from the elided pop pointer 1
+  ].join("\n"), { prelude });
+  assert.equal(m.ram[5], 11, "arr[3] read through the peephole");
+  assert.equal(stackTop(m), 22, "THAT updated by the peephole");
+});
+
+test("VM parser rejects arguments on nullary commands", () => {
+  const r = parseVm("add 1\nneg x\nreturn 5\nsub extra\n");
+  assert.equal(r.errors.length, 4);
+  assert.deepEqual(parseVm("add\nneg\nreturn\nsub\n").errors, []);
+});

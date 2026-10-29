@@ -74,13 +74,18 @@ async function main(): Promise<number> {
   }
   const chunks: Buffer[] = [];
   for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
-  const src = Buffer.concat(chunks).toString("utf8");
+  const src = Buffer.concat(chunks).toString("utf8").replace(/^\uFEFF/, "");
   const res = compileProgram([{ name, src }]);
   if (res.errors.length > 0) {
     for (const e of res.errors) process.stderr.write(`${name}:${e.line}: error: ${e.msg}\n`);
     return 1;
   }
   for (const { vm } of res.vms) process.stdout.write(vm);
+  if (res.vms.length > 1) {
+    process.stderr.write(
+      `${name}: warning: ${res.vms.length} classes in one VM stream share the module's static space; translate each class separately\n`,
+    );
+  }
   return 0;
 }
 
